@@ -42,7 +42,7 @@ A rebuild of Fathom.video (AI meeting notetaker) in a ~22 hour window, including
 
 | Job | Primary | Fallback |
 |---|---|---|
-| Summaries, action items, Ask answers | Google Gemini, current Flash model | OpenRouter `deepseek/deepseek-v4-flash-0731:free`, then `nvidia/nemotron-3-super-120b-a12b:free` |
+| Summaries, action items, Ask answers | Google Gemini `gemini-3.8-flash` | OpenRouter `deepseek/deepseek-v4-flash-0731:free`, then `nvidia/nemotron-3-super-120b-a12b:free` |
 | Embeddings | Gemini `gemini-embedding-001`, 768 dimensions | None. Ask degrades to full-text search only. |
 | Audio transcription | Groq `whisper-large-v3-turbo` | None. Upload fails with a clear error and paste remains available. |
 
@@ -55,7 +55,22 @@ Facts checked on 2026-09-18, and their limits:
 - OpenRouter's free tier has a low daily request cap. It is a safety net for a Gemini outage or daily cap during the demo, not a second engine.
 - Gemini's free tier may use prompts for training. All seed data is fictional.
 
-The Gemini model id is an env var, not a constant, because I have not verified the current Flash model name. Step 0 lists models with the real key and sets it.
+The Gemini model id is an env var (`GEMINI_MODEL`), set to `gemini-3.8-flash` in step 0.
+
+### Measured in step 0 (2026-09-18, with the real keys)
+
+| Provider | Source | Result |
+|---|---|---|
+| Groq chat (`openai/gpt-oss-20b`) | `x-ratelimit-*` response headers | 1,000 requests per day, **8,000 tokens per minute**. Confirms Groq cannot summarize a long transcript in one call. |
+| Groq `whisper-large-v3-turbo` | Response headers on a 1 second test file | 2,000 requests per day. `verbose_json` returns segments with timestamps. Audio-seconds limits are not exposed in headers. The documented figure is 7,200 per hour. |
+| OpenRouter | `GET /api/v1/key` | Free tier. **50 free-model requests per day.** The key expires on 2026-10-18. After that the fallback stops working and Gemini carries on alone. |
+| Gemini model list | `GET /v1beta/models` | Stable Flash models offered: 3.5, 3.6, 3.7, 3.8. `gemini-2.5-flash` is closed to new users. |
+| Gemini `gemini-3.8-flash` | Real `generateContent` call with a JSON response schema | Works on the free tier and returned valid schema-conformant JSON. It spent 217 thinking tokens on a one-line extraction, so `llm.ts` sets a low thinking budget for extraction calls. |
+| Gemini `gemini-embedding-001` | Real `embedContent` call, `outputDimensionality: 768` | Returns 768 dimensions. `gemini-embedding-2` also works and is held in reserve. |
+| Gemini rate limits | Not exposed by the API | **Pending.** To be read from aistudio.google.com/rate-limit by the account owner. |
+| Neon | `psql` over the pooled endpoint | Postgres 18.6, region `aws-us-east-2`, pgvector 0.8.6 installed by migration `0000_enable_pgvector`. |
+
+During this check `gemini-3.5-flash` returned a 503 for high demand. That is the failure the OpenRouter fallback exists for.
 
 ### `lib/llm.ts` contract
 
@@ -216,3 +231,7 @@ Working rules: deploy after every step, not at the end. Commit code and `.agent-
 | Neon cold start after idle | Free compute suspends when idle and wakes in about a second. Acceptable. No cron needed, unlike Supabase's week-long pause. |
 | Mic permission denied or unsupported browser | Clear inline error and a link to upload instead |
 | Polish squeezed out | Tokens and shell in step 1. The hour 13 cut exists to protect step 9. |
+
+## Changelog (after lock)
+
+- **2026-09-18, step 0.** Filled in measured provider limits and set `GEMINI_MODEL=gemini-3.8-flash`. Added: low thinking budget on extraction calls. Added: Vercel function region should be pinned to `cle1` (Cleveland) in step 1, because the Neon project is in `aws-us-east-2` (Ohio), not `us-east-1` as the plan assumed. Noted: the OpenRouter key expires 2026-10-18.
