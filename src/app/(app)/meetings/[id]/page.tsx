@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { AlertTriangle, CheckSquare, FileText, Loader2, NotebookPen, Sparkles } from "lucide-react";
 import { MeetingTabs, parseTab } from "@/components/meeting-tabs";
 import { PageHeader } from "@/components/page-header";
 import { ProcessingPoller } from "@/components/processing-poller";
+import { ScratchpadEditor } from "@/components/scratchpad-editor";
 import { ScrollIntoView } from "@/components/scroll-into-view";
+import { SummaryControls } from "@/components/summary-controls";
 import { Timestamp } from "@/components/timestamp";
 import { EmptyState } from "@/components/ui/empty-state";
 import { db, schema } from "@/db";
@@ -59,6 +62,23 @@ export default async function MeetingPage({ params, searchParams }: Props) {
       : Promise.resolve([] as Summary[]),
   ]);
   const summary = summaryRows[0] ?? null;
+  const [templates, [pad], currentSummaries] = await Promise.all([
+    db.select().from(schema.templates).orderBy(asc(schema.templates.sortOrder)),
+    db.select().from(schema.scratchpads).where(eq(schema.scratchpads.meetingId, meeting.id)).limit(1),
+    db
+      .select({ templateId: schema.summaries.templateId, notesVersionUsed: schema.summaries.notesVersionUsed })
+      .from(schema.summaries)
+      .where(and(eq(schema.summaries.meetingId, meeting.id), eq(schema.summaries.isCurrent, true))),
+  ]);
+  const notesVersion = pad?.version ?? 0;
+  // Stale = the notes were saved after this summary was generated (SPEC.md section 4).
+  const notesChanged = summary !== null && notesVersion > summary.notesVersionUsed;
+  const templateOptions = templates.map((t) => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    ready: currentSummaries.some((c) => c.templateId === t.id && c.notesVersionUsed === notesVersion),
+  }));
   const speakers = [...new Set(segments.map((s) => s.speaker))];
   const processing = meeting.status === "processing";
 
@@ -90,19 +110,23 @@ export default async function MeetingPage({ params, searchParams }: Props) {
       <MeetingTabs meetingId={meeting.id} active={tab} counts={{ actions: actionItems.length || undefined }} />
       <main className="flex-1 overflow-y-auto">
         {meeting.status === "failed" && (tab === "summary" || tab === "actions") ? (
-          <EmptyState icon={AlertTriangle} title="Generation failed">
-            {meeting.error ?? "The model could not be reached."} The transcript is saved, so nothing is lost.
-          </EmptyState>
+          <>
+            <SummaryControls meetingId={meeting.id} templates={templateOptions} activeTemplateId={meeting.activeTemplateId} notesChanged={false} failed />
+            <EmptyState icon={AlertTriangle} title="The summary could not be generated">
+              The AI models were busy or out of free quota. Your transcript is saved, so nothing is lost. Try again in a minute.
+            </EmptyState>
+          </>
         ) : tab === "summary" ? (
-          <SummaryTab meeting={meeting} summary={summary} processing={processing} />
+          <>
+            {summary && <SummaryControls meetingId={meeting.id} templates={templateOptions} activeTemplateId={meeting.activeTemplateId} notesChanged={notesChanged} />}
+            <SummaryTab meeting={meeting} summary={summary} processing={processing} />
+          </>
         ) : tab === "actions" ? (
           <ActionsTab meeting={meeting} items={actionItems} processing={processing} />
         ) : tab === "transcript" ? (
           <TranscriptTab meeting={meeting} segments={segments} speakers={speakers} targetMs={targetMs} />
         ) : (
-          <EmptyState icon={NotebookPen} title="Scratchpad is empty">
-            Notes that feed back into the summary arrive in build step 3.
-          </EmptyState>
+          <ScratchpadEditor key={meeting.id} meetingId={meeting.id} initialContent={pad?.content ?? ""} summaryIsStale={notesChanged} />
         )}
       </main>
     </>
@@ -138,10 +162,19 @@ function SummaryTab({ meeting, summary, processing }: { meeting: Meeting; summar
           <ul className="mt-2 space-y-2.5">
             {section.bullets.map((b, i) => (
               <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-ink">
-                <span className="mt-2 size-1 shrink-0 rounded-full bg-ink-4" aria-hidden />
+                <span className={cn("mt-2 size-1 shrink-0 rounded-full", b.from_notes ? "bg-note" : "bg-ink-4")} aria-hidden />
                 <span>
                   {b.text}{" "}
                   <span className="ml-0.5 inline-flex flex-wrap gap-1 align-middle">
+                    {b.from_notes && (
+                      <Link
+                        href={`/meetings/${meeting.id}?tab=scratchpad`}
+                        title="This point comes from your Scratchpad notes"
+                        className="inline-flex h-4.5 items-center gap-1 rounded-sm bg-note-soft px-1 text-2xs font-medium text-note transition-colors hover:bg-note/15"
+                      >
+                        <NotebookPen className="size-2.5" /> From your notes
+                      </Link>
+                    )}
                     {b.source_ms.map((ms) => <Timestamp key={ms} meetingId={meeting.id} ms={ms} estimated={meeting.timestampsEstimated} />)}
                   </span>
                 </span>
@@ -151,7 +184,8 @@ function SummaryTab({ meeting, summary, processing }: { meeting: Meeting; summar
         </section>
       ))}
       <p className="mt-8 flex items-center gap-1.5 border-t border-line pt-3 text-2xs text-ink-4" title={`Generated by ${summary.model}`}>
-        <Sparkles className="size-3" /> Every point links to the moment it was said. Generated by <span className="font-mono">{summary.model}</span>.
+        <Sparkles className="size-3" /> Every point links to the moment it was said. Generated by <span className="font-mono">{summary.model}</span>
+        {summary.notesVersionUsed > 0 ? ", using your notes." : "."}
       </p>
     </article>
   );

@@ -10,7 +10,11 @@ async function main() {
   const id = process.argv[2];
   const [m] = await db.select().from(schema.meetings).where(eq(schema.meetings.id, id));
   const segs = await db.select().from(schema.transcriptSegments).where(eq(schema.transcriptSegments.meetingId, id)).orderBy(asc(schema.transcriptSegments.idx));
-  const [s] = await db.select().from(schema.summaries).where(and(eq(schema.summaries.meetingId, id), eq(schema.summaries.isCurrent, true)));
+  // A meeting has one current summary per template. Show the active template's, or --template=<slug>.
+  const slug = process.argv.find((a) => a.startsWith("--template="))?.split("=")[1];
+  const templates = await db.select().from(schema.templates);
+  const templateId = slug ? templates.find((t) => t.slug === slug)?.id : m.activeTemplateId;
+  const [s] = await db.select().from(schema.summaries).where(and(eq(schema.summaries.meetingId, id), eq(schema.summaries.isCurrent, true), eq(schema.summaries.templateId, templateId!)));
   const items = await db.select().from(schema.actionItems).where(eq(schema.actionItems.meetingId, id)).orderBy(asc(schema.actionItems.sortOrder));
   const chunks = await db.select().from(schema.transcriptChunks).where(eq(schema.transcriptChunks.meetingId, id));
   const parts = await db.select().from(schema.participants).where(eq(schema.participants.meetingId, id));
@@ -19,11 +23,11 @@ async function main() {
   let cites = 0, bad = 0;
   const quote = (ms: number) => { cites++; const g = byStart.get(ms); if (!g) { bad++; return `      !! ${ms} ms is NOT a segment start`; } return `      ↳ ${formatOffset(ms)} ${g.speaker}: ${g.text.slice(0, 120)}${g.text.length > 120 ? "…" : ""}`; };
 
-  console.log(`TITLE     ${m.title}\nSTATUS    ${m.status} | ${formatOffset(m.durationMs)} | estimated timestamps: ${m.timestampsEstimated}\nPEOPLE    ${parts.map((p) => p.name).join(", ")}\nSTORED    ${segs.length} segments, ${chunks.length} chunks (${chunks.filter((c) => c.embedding).length} embedded, ${Math.min(...chunks.map((c) => c.text.split(/\s+/).length))}-${Math.max(...chunks.map((c) => c.text.split(/\s+/).length))} words incl. speaker labels)\nMODEL     ${s.model}\n`);
+  console.log(`TEMPLATE  ${templates.find((t) => t.id === templateId)?.name} (notes version used: ${s.notesVersionUsed})\nTITLE     ${m.title}\nSTATUS    ${m.status} | ${formatOffset(m.durationMs)} | estimated timestamps: ${m.timestampsEstimated}\nPEOPLE    ${parts.map((p) => p.name).join(", ")}\nSTORED    ${segs.length} segments, ${chunks.length} chunks (${chunks.filter((c) => c.embedding).length} embedded, ${Math.min(...chunks.map((c) => c.text.split(/\s+/).length))}-${Math.max(...chunks.map((c) => c.text.split(/\s+/).length))} words incl. speaker labels)\nMODEL     ${s.model}\n`);
   console.log(`OVERVIEW\n  ${s.content.overview}\n`);
   for (const sec of s.content.sections) {
     console.log(sec.title.toUpperCase() + (sec.bullets.length ? "" : "  (none)"));
-    for (const b of sec.bullets) { console.log(`  • ${b.text}`); if (process.argv[3] !== "--brief") b.source_ms.forEach((ms) => console.log(quote(ms))); else b.source_ms.forEach((ms) => quote(ms)); }
+    for (const b of sec.bullets) { console.log(`  • ${b.from_notes ? "[FROM NOTES] " : ""}${b.text}`); if (process.argv[3] !== "--brief") b.source_ms.forEach((ms) => console.log(quote(ms))); else b.source_ms.forEach((ms) => quote(ms)); }
     console.log();
   }
   console.log("ACTION ITEMS");
