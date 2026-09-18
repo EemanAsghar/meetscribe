@@ -29,6 +29,7 @@ const GROQ_MAX_WAIT_MS = Number(process.env.GROQ_MAX_WAIT_MS ?? 20_000);
 const DEFAULT_GEMINI_FALLBACKS = "gemini-3.6-flash,gemini-3.5-flash,gemini-3.8-flash,gemini-3.7-flash,gemini-3.5-flash-lite";
 const FIRST_TOKEN_TIMEOUT_MS = 12_000;
 const BREAKER_MS = 3 * 60_000;
+const OPENROUTER_TIMEOUT_MS = 100_000;
 export const EMBEDDING_DIMENSIONS = 768;
 
 /**
@@ -247,7 +248,8 @@ function openRouter(model: string): Provider {
             ? { response_format: { type: "json_schema", json_schema: { name: "result", strict: true, schema: jsonSchema } } }
             : {}),
         },
-        timeoutMs,
+        // Free OpenRouter models are slow on transcript-sized prompts: 50 s was not enough on 2026-09-18.
+        Math.max(timeoutMs, OPENROUTER_TIMEOUT_MS),
       )) as { choices?: { message?: { content?: string } }[]; error?: { message?: string } };
       if (data.error) throw new Error(data.error.message ?? "OpenRouter error");
       const text = data.choices?.[0]?.message?.content;
@@ -271,15 +273,25 @@ const failedAt = new Map<string, number>();
 const markFailed = (model: string) => failedAt.set(model, Date.now());
 const markOk = (model: string) => failedAt.delete(model);
 
-export type Order = "quality" | "speed";
+export type Order = "quality" | "speed" | "openrouter";
+const ORDERS: Order[] = ["quality", "speed", "openrouter"];
 
-function providers(order: Order): Provider[] {
+/**
+ * LLM_ORDER overrides the order every caller asked for. It exists for days when Gemini's daily quota is
+ * spent: "openrouter" puts the 50-a-day OpenRouter models first so work can continue.
+ */
+function providers(requested: Order): Provider[] {
+  const override = process.env.LLM_ORDER as Order | undefined;
+  const order = override && ORDERS.includes(override) ? override : requested;
   const groqList = process.env.GROQ_API_KEY ? groqModels().map(groq) : [];
   const geminiList = process.env.GEMINI_API_KEY ? geminiModels().map(gemini) : [];
-  const list: Provider[] = order === "speed" ? [...groqList, ...geminiList] : [...geminiList, ...groqList];
-  if (process.env.OPENROUTER_API_KEY) {
-    for (const m of (process.env.OPENROUTER_MODELS ?? "").split(",").map((s) => s.trim()).filter(Boolean)) list.push(openRouter(m));
-  }
+  const openRouterList = process.env.OPENROUTER_API_KEY
+    ? (process.env.OPENROUTER_MODELS ?? "").split(",").map((s) => s.trim()).filter(Boolean).map(openRouter)
+    : [];
+  const list: Provider[] =
+    order === "openrouter" ? [...openRouterList, ...geminiList, ...groqList]
+    : order === "speed" ? [...groqList, ...geminiList, ...openRouterList]
+    : [...geminiList, ...groqList, ...openRouterList];
   if (list.length === 0) throw new Error("No LLM provider is configured");
   // Recently failed providers go to the back instead of being dropped, so there is always something to try.
   const tripped = (p: Provider) => Date.now() - (failedAt.get(p.name) ?? 0) < BREAKER_MS;
