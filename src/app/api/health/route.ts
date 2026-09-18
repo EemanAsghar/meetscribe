@@ -6,6 +6,9 @@ export const dynamic = "force-dynamic";
 
 const REQUIRED_ENV = [
   "SESSION_SECRET",
+  "AUTH_SECRET",
+  "AUTH_GITHUB_ID",
+  "AUTH_GITHUB_SECRET",
   "GEMINI_API_KEY",
   "GEMINI_MODEL",
   "GROQ_API_KEY",

@@ -2,7 +2,7 @@
 
 An AI meeting notetaker, rebuilt from Fathom.video in about 22 hours on free-tier services only.
 
-**Live:** https://meetscribe-three.vercel.app (click "Continue as demo user", no signup)
+**Live:** https://meetscribe-three.vercel.app. Click **"Explore the demo workspace"** to see the seeded meetings with no account, or **"Sign in with GitHub"** for a private workspace of your own (it starts empty).
 **Public share page example:** https://meetscribe-three.vercel.app/s/sFZaL1ZPl2wW (no login)
 
 It is not a clone. I used Fathom first, found three places where it let me down, and built those better:
@@ -34,7 +34,8 @@ The demo workspace holds seven linked meetings of a fictional company (Northwind
 - **The meeting bot.** Nothing joins Zoom, Meet or Teams. Upload, paste and in-browser recording stand in for it; everything downstream treats the result as a captured call.
 - **Calendar sync.** "Simulate a calendar meeting" creates the scheduled meeting a calendar would.
 - **Speaker names on audio.** Whisper does not tell voices apart, so recordings show one "Speaker". Pasted transcripts keep their speakers. The UI says this where it matters.
-- **Auth.** One demo user behind a signed cookie. Routes are still protected and ownership is checked on every write.
+
+**Authentication is real.** Sign in with GitHub (Auth.js, OAuth with PKCE, session in an encrypted cookie, no passwords stored). Each account gets its own workspace, and every route and API checks ownership: a signed-in user asking for someone else's meeting, recording or share settings gets a 404, and Ask only searches their own meetings. The one-click demo workspace is kept next to it on purpose, because that is where the seeded meetings live and a reviewer should not have to create data to see the product.
 
 ## Honest limitations
 
@@ -74,7 +75,8 @@ paste / upload / record ──► segments ──► chunks (150-250 words, embe
 ## Run it
 
 ```bash
-cp .env.example .env.local     # fill in: Neon (pooled URL), Gemini, Groq, OpenRouter, Blob token, SESSION_SECRET
+cp .env.example .env.local     # fill in: Neon (pooled URL), Gemini, Groq, OpenRouter, Blob token, SESSION_SECRET,
+                               # and AUTH_SECRET + a GitHub OAuth app (callback: <origin>/api/auth/callback/github)
 npm install
 npm run db:migrate             # schema, pgvector, templates, demo user
 npx tsx scripts/seed-transcripts.ts   # the seven demo meetings (transcripts and embeddings, no model calls)
@@ -92,6 +94,7 @@ npm test                       # 58 tests: parser, chunker, rank fusion, citatio
 | `src/lib/generate.ts` | Prompts and the grounding rule. |
 | `src/lib/ask/` | Retrieval, rank fusion, citation validation, line matching. |
 | `src/lib/transcript/` | The parser and chunker, with the tests written before them. |
+| `src/auth.ts`, `src/proxy.ts`, `src/lib/auth.ts` | GitHub sign-in, the route gate, and the one place a request is resolved to a user. |
 | `src/components/recording.tsx` | The recorder and the indicator. |
 | `src/components/summary-body.tsx` | The single summary renderer shared by app and share page. |
 | `fixtures/` | The seed meetings and a real AMI Corpus meeting (CC BY 4.0). |
