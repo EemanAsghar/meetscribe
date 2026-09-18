@@ -239,6 +239,10 @@ function openRouter(model: string): Provider {
         {
           model,
           temperature: 0.2,
+          // Measured: with no reasoning setting, deepseek-v4-flash streamed 28,000 characters of hidden reasoning
+          // over four minutes on an 18-minute transcript and never reached the answer. Low effort finishes in
+          // under a minute. Models without a reasoning mode ignore this field.
+          reasoning: { effort: "low" },
           messages: [
             // Free OpenRouter models do not all honour response_format, so the schema is spelled out too.
             { role: "system", content: systemWithSchema ?? system },
@@ -423,6 +427,7 @@ async function* streamProvider(name: string, opts: { system: string; prompt: str
       model: name,
       stream: true,
       temperature: 0.2,
+      ...(onGroq ? {} : { reasoning: { effort: "low" } }),
       ...(onGroq ? { max_completion_tokens: GROQ_MAX_COMPLETION_TOKENS, ...(name.includes("gpt-oss") ? { reasoning_effort: opts.effort ?? "low" } : {}) } : {}),
       messages: [{ role: "system", content: opts.system }, { role: "user", content: opts.prompt }],
     }),
