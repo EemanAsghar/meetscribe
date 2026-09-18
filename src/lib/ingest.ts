@@ -90,6 +90,7 @@ export async function processMeeting(meetingId: string) {
       db.select().from(schema.scratchpads).where(eq(schema.scratchpads.meetingId, meetingId)).limit(1),
     ]);
 
+    // Two calls, in parallel. A single merged call was tried and lost action items (see generate.ts).
     const [summary, actions] = await Promise.all([
       timed("summary", () => generateSummary({ segments, sections: template.sections, templateName: template.name, notes: pad?.content })),
       timed("actionItems", () =>

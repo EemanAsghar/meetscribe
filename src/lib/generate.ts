@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { SummaryContent, TemplateSection } from "@/db/schema";
-import { generateJSON, type Attempt } from "@/lib/llm";
-import { formatOffset } from "@/lib/utils";
+import { generateJSON, type Attempt, type Order } from "@/lib/llm";
 
 // Summary and action item generation.
 //
@@ -12,8 +11,10 @@ import { formatOffset } from "@/lib/utils";
 
 export type SegmentInput = { idx: number; speaker: string; startMs: number; text: string };
 
+// No timestamps in the prompt: the model cites by [index] and never needs them, and on a 244-line
+// transcript they cost about 1,200 tokens, which matters under Groq's 8,000 tokens per minute.
 function renderTranscript(segments: SegmentInput[]): string {
-  return segments.map((s) => `[${s.idx}] (${formatOffset(s.startMs)}) ${s.speaker}: ${s.text}`).join("\n");
+  return segments.map((s) => `[${s.idx}] ${s.speaker}: ${s.text}`).join("\n");
 }
 
 function notesBlock(notes: string | null | undefined): string {
@@ -27,7 +28,40 @@ const NOTES_RULES = `The meeting owner may have written notes, given in <owner_n
 - Set from_notes to true on every bullet the notes changed or added. Otherwise false.
 - A bullet that comes only from the notes may have an empty source_segments list.`;
 
-// --------------------------------------------------------------------- summary
+// ---------------------------------------------------------------- prompt rules
+
+const INTRO = "The transcript is given one line per turn as: [index] Speaker: text";
+
+function summaryRules(sections: TemplateSection[], hasNotes: boolean): string {
+  return `Summary rules:
+- Use only what is in the transcript${hasNotes ? " and the owner's notes" : ""}. Never add outside knowledge, guesses or advice.
+- Every bullet must list in source_segments the [index] numbers of the lines it is based on. Use 1 to 4 indices, the most specific ones. Only use indices that appear in the transcript.
+- Attribute statements to the person who made them, by name, when it matters who said it. People often introduce themselves by name: use those names.
+- Keep numbers, dates, names and product terms exactly as spoken.
+- One idea per bullet, one or two sentences, plain language, no filler such as "the team discussed".
+- If a section has nothing real to report, return it with an empty bullets list. Do not pad.
+- Transcripts from speech recognition contain errors and filler. Read through them; do not quote the noise.
+${hasNotes ? NOTES_RULES : "- There are no owner notes. Set from_notes to false on every bullet."}
+
+Produce exactly these sections, in this order, using these keys:
+${sections.map((s) => `- key "${s.key}" (${s.title}): ${s.instruction}`).join("\n")}`;
+}
+
+function actionRules(participants: string[], meetingDate: Date, hasNotes: boolean): string {
+  return `An action item is a piece of work someone is expected to do after the meeting. That includes:
+- something a person says they will do ("I'll send the deck"),
+- something a person is asked or assigned to do, including by a manager or chair handing out tasks. A brief or silent acceptance still counts; the assignment is what matters.
+Not action items: things already done, general wishes, opinions, and topics that were only discussed.
+
+Action item rules:
+- task starts with a verb and is readable without the transcript.
+- assignee must be exactly one of these names, or null: ${participants.map((p) => JSON.stringify(p)).join(", ")}. When someone says "I'll do it", the assignee is that speaker.
+- due_date only when a deadline was actually stated. The meeting took place on ${meetingDate.toISOString().slice(0, 10)} (${meetingDate.toLocaleDateString("en", { weekday: "long", timeZone: "UTC" })}); resolve "Friday" or "next week" against that date. Otherwise null.
+- source_segments are the [index] numbers of the 1 to 3 lines that say what is to be done and by whom, most informative first. This is only about which lines to cite: point at the line where the task is described, because a reply like "okay" tells a reader nothing. It does not change whether something is an action item. Only use indices that appear in the transcript.
+- Merge duplicates. Order by when they came up. If there are none, return an empty list.${hasNotes ? "\n- The owner's notes in <owner_notes> correct the transcript. If they change an owner, a date or a task, use the corrected version." : ""}`;
+}
+
+// --------------------------------------------------------------------- schemas
 
 const summaryOutput = z.object({
   meeting_title: z.string().describe("A specific 3 to 8 word title for this meeting. No date, no 'Meeting about'."),
@@ -46,51 +80,32 @@ const summaryOutput = z.object({
   ),
 });
 
-export type GeneratedSummary = {
-  content: SummaryContent;
-  title: string;
-  model: string;
-  attempts: Attempt[];
-  stats: { bullets: number; droppedUngrounded: number; invalidCitations: number };
-};
+const actionItemOutput = z.object({
+  task: z.string(),
+  assignee: z.string().nullable(),
+  due_date: z.string().nullable().describe("YYYY-MM-DD or null"),
+  source_segments: z.array(z.number().int()),
+});
 
-export async function generateSummary(input: {
-  segments: SegmentInput[];
-  sections: TemplateSection[];
-  templateName: string;
-  notes?: string | null;
-}): Promise<GeneratedSummary> {
-  const hasNotes = Boolean(input.notes?.trim());
-  const system = `You write meeting summaries for people who were not in the meeting and need to act on it.
+const actionOutput = z.object({ items: z.array(actionItemOutput) });
+// Action items come FIRST in the schema. Models write JSON in order, and as the last field of a long
+// summary they were an afterthought: three different models returned none for a meeting that has three.
+const notesOutput = z.object({ action_items: z.array(actionItemOutput), ...summaryOutput.shape });
 
-The transcript is given one line per turn as: [index] (time) Speaker: text
+// ------------------------------------------------------------------- grounding
 
-Rules:
-- Use only what is in the transcript${hasNotes ? " and the owner's notes" : ""}. Never add outside knowledge, guesses or advice.
-- Every bullet must list in source_segments the [index] numbers of the lines it is based on. Use 1 to 4 indices, the most specific ones. Only use indices that appear in the transcript.
-- Attribute statements to the person who made them, by name, when it matters who said it.
-- Keep numbers, dates, names and product terms exactly as spoken.
-- One idea per bullet, one or two sentences, plain language, no filler such as "the team discussed".
-- If a section has nothing real to report, return it with an empty bullets list. Do not pad.
-- Transcripts from speech recognition contain errors and filler. Read through them; do not quote the noise.
-${hasNotes ? NOTES_RULES : "- There are no owner notes. Set from_notes to false on every bullet."}
+export type SummaryStats = { bullets: number; droppedUngrounded: number; invalidCitations: number };
+export type GeneratedActionItem = { text: string; assigneeName: string | null; dueDate: string | null; sourceMs: number };
 
-Produce exactly these sections, in this order, using these keys:
-${input.sections.map((s) => `- key "${s.key}" (${s.title}): ${s.instruction}`).join("\n")}`;
+const wordCounts = (segments: SegmentInput[]) => new Map(segments.map((s) => [s.idx, s.text.split(/\s+/).filter(Boolean).length]));
 
-  const { data, model, attempts } = await generateJSON({
-    system,
-    prompt: `Summary style: ${input.templateName}\n\n<transcript>\n${renderTranscript(input.segments)}\n</transcript>${notesBlock(input.notes)}`,
-    schema: summaryOutput,
-    effort: "low",
-    timeoutMs: 50_000,
-  });
+/** Maps cited line indices to real segment offsets and drops whatever does not resolve. */
+function groundSummary(data: z.infer<typeof summaryOutput>, segments: SegmentInput[], templateSections: TemplateSection[], hasNotes: boolean) {
+  const startByIdx = new Map(segments.map((s) => [s.idx, s.startMs]));
+  const wordsByIdx = wordCounts(segments);
+  const stats: SummaryStats = { bullets: 0, droppedUngrounded: 0, invalidCitations: 0 };
 
-  const startByIdx = new Map(input.segments.map((s) => [s.idx, s.startMs]));
-  const wordsByIdx = new Map(input.segments.map((s) => [s.idx, s.text.split(/\s+/).filter(Boolean).length]));
-  const stats = { bullets: 0, droppedUngrounded: 0, invalidCitations: 0 };
-
-  const sections = input.sections.map((template) => {
+  const sections = templateSections.map((template) => {
     const produced = data.sections.find((s) => s.key === template.key);
     const bullets = (produced?.bullets ?? []).flatMap((b) => {
       const real = [...new Set(b.source_segments)].filter((i) => startByIdx.has(i));
@@ -109,59 +124,16 @@ ${input.sections.map((s) => `- key "${s.key}" (${s.title}): ${s.instruction}`).j
     return { key: template.key, title: template.title, bullets };
   });
 
-  return { content: { overview: data.overview.trim(), sections }, title: data.meeting_title.trim(), model, attempts, stats };
+  return { content: { overview: data.overview.trim(), sections } as SummaryContent, stats };
 }
 
-// ---------------------------------------------------------------- action items
-
-const actionOutput = z.object({
-  items: z.array(
-    z.object({
-      task: z.string().describe("Starts with a verb. Self-contained: readable without the transcript."),
-      assignee: z.string().nullable().describe("Exactly one of the participant names, or null when no owner was stated"),
-      due_date: z.string().nullable().describe("YYYY-MM-DD, only when a deadline was stated. Otherwise null."),
-      source_segments: z.array(z.number().int()).describe("1 to 3 indices of the lines that state the task and who owns it"),
-    }),
-  ),
-});
-
-export type GeneratedActionItem = { text: string; assigneeName: string | null; dueDate: string | null; sourceMs: number };
-
-export async function generateActionItems(input: {
-  segments: SegmentInput[];
-  participants: string[];
-  meetingDate: Date;
-  notes?: string | null;
-}): Promise<{ items: GeneratedActionItem[]; model: string; attempts: Attempt[]; dropped: number }> {
-  const system = `You extract action items from a meeting transcript.
-
-The transcript is given one line per turn as: [index] (time) Speaker: text
-
-An action item is a piece of work someone is expected to do after the meeting. That includes:
-- something a person says they will do ("I'll send the deck"),
-- something a person is asked or assigned to do, including by a manager or chair handing out tasks. A brief or silent acceptance still counts; the assignment is what matters.
-Not action items: things already done, general wishes, opinions, and topics that were only discussed.
-
-Rules:
-- assignee must be exactly one of these names, or null: ${input.participants.map((p) => JSON.stringify(p)).join(", ")}. When someone says "I'll do it", the assignee is that speaker.
-- due_date only when a deadline was actually stated. The meeting took place on ${input.meetingDate.toISOString().slice(0, 10)} (${input.meetingDate.toLocaleDateString("en", { weekday: "long", timeZone: "UTC" })}); resolve "Friday" or "next week" against that date. Otherwise null.
-- source_segments are the [index] numbers of the 1 to 3 lines that say what is to be done and by whom, most informative first. This is only about which lines to cite: point at the line where the task is described, because a reply like "okay" tells a reader nothing. It does not change whether something is an action item. Only use indices that appear in the transcript.
-- Merge duplicates. Order by when they came up. If there are none, return an empty list.${input.notes?.trim() ? "\n- The owner's notes in <owner_notes> correct the transcript. If they change an owner, a date or a task, use the corrected version." : ""}`;
-
-  const { data, model, attempts } = await generateJSON({
-    system,
-    prompt: `<transcript>\n${renderTranscript(input.segments)}\n</transcript>${notesBlock(input.notes)}`,
-    schema: actionOutput,
-    effort: "low",
-    timeoutMs: 50_000,
-  });
-
-  const startByIdx = new Map(input.segments.map((s) => [s.idx, s.startMs]));
-  const wordsByIdx = new Map(input.segments.map((s) => [s.idx, s.text.split(/\s+/).filter(Boolean).length]));
-  const byLower = new Map(input.participants.map((p) => [p.toLowerCase(), p]));
+function groundActionItems(raw: z.infer<typeof actionItemOutput>[], segments: SegmentInput[], participants: string[]) {
+  const startByIdx = new Map(segments.map((s) => [s.idx, s.startMs]));
+  const wordsByIdx = wordCounts(segments);
+  const byLower = new Map(participants.map((p) => [p.toLowerCase(), p]));
   let dropped = 0;
 
-  const items = data.items.flatMap((item) => {
+  const items: GeneratedActionItem[] = raw.flatMap((item) => {
     // Same grounding rule as summaries: real indices only, and a substantive line beats "okay".
     const real = item.source_segments.filter((i) => startByIdx.has(i));
     const best = real.find((i) => (wordsByIdx.get(i) ?? 0) > 3) ?? real[0];
@@ -177,5 +149,74 @@ Rules:
       sourceMs,
     }];
   });
-  return { items, model, attempts, dropped };
+  return { items, dropped };
+}
+
+// ------------------------------------------------------------------ generators
+
+export type GeneratedSummary = { content: SummaryContent; title: string; model: string; attempts: Attempt[]; stats: SummaryStats };
+
+/**
+ * Summary and action items in ONE call. NOT used at ingest. It was built to fit Groq's 8,000 tokens per
+ * minute, then measured on the real fixture: gemini-3.5-flash-lite returned no action items in two runs and
+ * gpt-oss-120b returned 2, 0 and 2 of the 3, while the separate calls below found all 3 on every run.
+ * Kept for scripts/compare-providers.ts, which is how that was measured, and because it halves the number
+ * of requests if a provider with a tight daily cap and a strong model ever needs it.
+ */
+export async function generateMeetingNotes(input: {
+  segments: SegmentInput[];
+  sections: TemplateSection[];
+  templateName: string;
+  participants: string[];
+  meetingDate: Date;
+  notes?: string | null;
+  order?: Order;
+}): Promise<GeneratedSummary & { actionItems: GeneratedActionItem[]; droppedActionItems: number }> {
+  const hasNotes = Boolean(input.notes?.trim());
+  const { data, model, attempts } = await generateJSON({
+    system: `You turn a meeting transcript into a summary and a list of action items, for people who were not in the meeting and need to act on it.
+
+${INTRO}
+
+Work in two passes. First read the whole transcript looking only for work that was handed out or promised, and fill action_items. Meetings usually end with the chair assigning tasks: check the last part of the transcript carefully. Then write the summary.
+
+${actionRules(input.participants, input.meetingDate, hasNotes)}
+
+${summaryRules(input.sections, hasNotes)}`,
+    prompt: `Summary style: ${input.templateName}\n\n<transcript>\n${renderTranscript(input.segments)}\n</transcript>${notesBlock(input.notes)}`,
+    schema: notesOutput,
+    effort: "low",
+    order: input.order,
+    timeoutMs: 50_000,
+  });
+  const actions = groundActionItems(data.action_items, input.segments, input.participants);
+  return { ...groundSummary(data, input.segments, input.sections, hasNotes), title: data.meeting_title.trim(), model, attempts, actionItems: actions.items, droppedActionItems: actions.dropped };
+}
+
+/** Summary only: switching template or regenerating after the notes changed (step 3). */
+export async function generateSummary(input: { segments: SegmentInput[]; sections: TemplateSection[]; templateName: string; notes?: string | null; order?: Order }): Promise<GeneratedSummary> {
+  const hasNotes = Boolean(input.notes?.trim());
+  const { data, model, attempts } = await generateJSON({
+    system: `You write meeting summaries for people who were not in the meeting and need to act on it.\n\n${INTRO}\n\n${summaryRules(input.sections, hasNotes)}`,
+    prompt: `Summary style: ${input.templateName}\n\n<transcript>\n${renderTranscript(input.segments)}\n</transcript>${notesBlock(input.notes)}`,
+    schema: summaryOutput,
+    effort: "low",
+    order: input.order,
+    timeoutMs: 50_000,
+  });
+  return { ...groundSummary(data, input.segments, input.sections, hasNotes), title: data.meeting_title.trim(), model, attempts };
+}
+
+/** Action items only. */
+export async function generateActionItems(input: { segments: SegmentInput[]; participants: string[]; meetingDate: Date; notes?: string | null; order?: Order }) {
+  const hasNotes = Boolean(input.notes?.trim());
+  const { data, model, attempts } = await generateJSON({
+    system: `You extract action items from a meeting transcript.\n\n${INTRO}\n\n${actionRules(input.participants, input.meetingDate, hasNotes)}`,
+    prompt: `<transcript>\n${renderTranscript(input.segments)}\n</transcript>${notesBlock(input.notes)}`,
+    schema: actionOutput,
+    effort: "low",
+    order: input.order,
+    timeoutMs: 50_000,
+  });
+  return { ...groundActionItems(data.items, input.segments, input.participants), model, attempts };
 }

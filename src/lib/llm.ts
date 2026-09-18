@@ -1,18 +1,32 @@
 import { z } from "zod";
 
-// One interface over every model call (SPEC.md section 2).
-// Provider order: GEMINI_MODEL, its sibling Flash models, then each OpenRouter model in OPENROUTER_MODELS.
-// Every result names the model that produced it, so a fallback is visible, never silent.
+// One interface over every model call (SPEC.md section 2 and its changelog).
 //
-// Measured in step 2: the newest free-tier Flash model can hang for 40+ seconds or return 503 while
-// older siblings answer in 3 to 9 s. So (a) Gemini is always called through its streaming endpoint
-// and abandoned if no first token arrives in time, (b) sibling models are tried before OpenRouter,
-// which only allows 50 free requests a day, and (c) a model that just failed is skipped for a while.
+// Three providers, all free tier. Every result names the model that produced it, so a fallback is visible.
+// Measured on 2026-09-18 (details in the SPEC.md changelog):
+//   Gemini      Best output on real transcripts and a 1M-token context, but 20 requests/DAY per Flash model,
+//               and the newest model can hang. Called through its streaming endpoint and abandoned if no
+//               first token arrives in time. Each sibling model has its own daily bucket, so the chain is long.
+//   Groq        1,000 requests/day and answers in 1 to 3 s, but 8,000 tokens per MINUTE, which forces low
+//               reasoning effort on anything transcript-sized. At that setting gpt-oss-120b missed action
+//               items and invented a figure, so it does not lead for summaries.
+//   OpenRouter  50 free requests/day in total and slow on long prompts. Last resort.
+//
+// Order is chosen per task: "quality" = Gemini, Groq, OpenRouter. "speed" = Groq, Gemini, OpenRouter.
+// A provider that just failed goes to the back of the order for a few minutes.
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const EMBEDDING_MODEL = "gemini-embedding-001";
-const DEFAULT_GEMINI_FALLBACKS = "gemini-3.6-flash,gemini-3.5-flash,gemini-3.8-flash";
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+const DEFAULT_GROQ_MODELS = "openai/gpt-oss-120b";
+/** Groq's free tier counts prompt plus requested completion tokens against 8,000 per minute. */
+const GROQ_TOKENS_PER_MINUTE = 8_000;
+const GROQ_MAX_COMPLETION_TOKENS = 2_000;
+/** How long a call will wait for room in the per-minute budget before falling through. Scripts raise it. */
+const GROQ_MAX_WAIT_MS = Number(process.env.GROQ_MAX_WAIT_MS ?? 20_000);
+// Each Flash model has its own 20-a-day bucket, so more siblings means more daily headroom.
+const DEFAULT_GEMINI_FALLBACKS = "gemini-3.6-flash,gemini-3.5-flash,gemini-3.8-flash,gemini-3.7-flash,gemini-3.5-flash-lite";
 const FIRST_TOKEN_TIMEOUT_MS = 12_000;
 const BREAKER_MS = 3 * 60_000;
 export const EMBEDDING_DIMENSIONS = 768;
@@ -31,8 +45,30 @@ export class LLMError extends Error {
   }
 }
 
-type Provider = { name: string; call: (req: CallRequest) => Promise<string> };
-type CallRequest = { system: string; prompt: string; jsonSchema?: Record<string, unknown>; effort: Effort; timeoutMs: number };
+type Provider = {
+  name: string;
+  call: (req: CallRequest) => Promise<string>;
+  /** A reason this provider cannot take the request at all. It is then skipped without a call or a breaker trip. */
+  cannotTake?: (req: CallRequest) => string | null;
+};
+
+/**
+ * Rough on purpose. Only used to avoid sending Groq a request it must reject. Calibrated against Groq's own
+ * count on the real fixture: indexed transcript lines ("[12] Speaker A: ...") run at about 3.7 characters
+ * per token, well below the 4 usually quoted for prose. Erring low on the ratio errs towards skipping.
+ */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 3.5);
+}
+type CallRequest = {
+  system: string;
+  /** The system prompt with the JSON Schema written out, for providers or modes that do not enforce response_format. */
+  systemWithSchema?: string;
+  prompt: string;
+  jsonSchema?: Record<string, unknown>;
+  effort: Effort;
+  timeoutMs: number;
+};
 
 function env(name: string): string {
   const v = process.env[name];
@@ -135,10 +171,67 @@ function gemini(model: string): Provider {
   };
 }
 
+function groq(model: string): Provider {
+  const request = (req: CallRequest, structured: boolean) =>
+    postJSON(
+      GROQ_URL,
+      { Authorization: `Bearer ${env("GROQ_API_KEY")}` },
+      {
+        model,
+        temperature: 0.2,
+        max_completion_tokens: GROQ_MAX_COMPLETION_TOKENS,
+        // "medium" does not fit: on an 18-minute transcript the reasoning alone used the whole completion budget.
+        ...(model.includes("gpt-oss") ? { reasoning_effort: req.effort } : {}),
+        messages: [
+          // Strict response_format enforces the schema, so it is not repeated in the prompt (about 500 tokens saved).
+          { role: "system", content: structured ? req.system : (req.systemWithSchema ?? req.system) },
+          { role: "user", content: req.prompt },
+        ],
+        ...(req.jsonSchema
+          ? { response_format: structured ? { type: "json_schema", json_schema: { name: "result", strict: true, schema: req.jsonSchema } } : { type: "json_object" } }
+          : {}),
+      },
+      req.timeoutMs,
+    ) as Promise<{ choices?: { message?: { content?: string }; finish_reason?: string }[] }>;
+
+  return {
+    name: model,
+    cannotTake({ system, prompt, jsonSchema }) {
+      const needed = estimateTokens(system) + estimateTokens(prompt) + estimateTokens(JSON.stringify(jsonSchema ?? "")) + GROQ_MAX_COMPLETION_TOKENS;
+      return needed > GROQ_TOKENS_PER_MINUTE ? `needs about ${needed} tokens, over Groq's ${GROQ_TOKENS_PER_MINUTE} per minute` : null;
+    },
+    async call(req) {
+      let data;
+      try {
+        data = await request(req, true);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        // The per-minute token budget is shared by every call. Groq says how long until there is room; when
+        // that is short, waiting once is far cheaper than spending one of Gemini's 20 daily requests.
+        const wait = /^HTTP 429/.test(message) ? /try again in ([\d.]+)(ms|s)\b/.exec(message) : null;
+        const waitMs = wait ? Math.ceil(Number(wait[1]) * (wait[2] === "s" ? 1000 : 1)) : null;
+        if (waitMs !== null && waitMs <= GROQ_MAX_WAIT_MS) {
+          await new Promise((resolve) => setTimeout(resolve, waitMs + 250));
+          data = await request(req, true);
+        } else if (/^HTTP 400/.test(message) && req.jsonSchema) {
+          // Strict schemas are not accepted for every schema shape or model. JSON mode plus our own validation covers it.
+          data = await request(req, false);
+        } else {
+          throw error;
+        }
+      }
+      const choice = data.choices?.[0];
+      const text = choice?.message?.content;
+      if (!text) throw new Error(`Empty response (finish_reason: ${choice?.finish_reason ?? "none"})`);
+      return text;
+    },
+  };
+}
+
 function openRouter(model: string): Provider {
   return {
     name: model,
-    async call({ system, prompt, jsonSchema, timeoutMs }) {
+    async call({ system, systemWithSchema, prompt, jsonSchema, timeoutMs }) {
       const data = (await postJSON(
         OPENROUTER_URL,
         { Authorization: `Bearer ${env("OPENROUTER_API_KEY")}`, "X-Title": "Meetscribe" },
@@ -146,7 +239,8 @@ function openRouter(model: string): Provider {
           model,
           temperature: 0.2,
           messages: [
-            { role: "system", content: system },
+            // Free OpenRouter models do not all honour response_format, so the schema is spelled out too.
+            { role: "system", content: systemWithSchema ?? system },
             { role: "user", content: prompt },
           ],
           ...(jsonSchema
@@ -163,6 +257,10 @@ function openRouter(model: string): Provider {
   };
 }
 
+function groqModels(): string[] {
+  return (process.env.GROQ_MODELS ?? DEFAULT_GROQ_MODELS).split(",").map((m) => m.trim()).filter(Boolean);
+}
+
 function geminiModels(): string[] {
   const list = [process.env.GEMINI_MODEL ?? "", ...(process.env.GEMINI_FALLBACK_MODELS ?? DEFAULT_GEMINI_FALLBACKS).split(",")];
   return [...new Set(list.map((m) => m.trim()).filter(Boolean))];
@@ -173,9 +271,12 @@ const failedAt = new Map<string, number>();
 const markFailed = (model: string) => failedAt.set(model, Date.now());
 const markOk = (model: string) => failedAt.delete(model);
 
-function providers(): Provider[] {
-  const list: Provider[] = [];
-  if (process.env.GEMINI_API_KEY) for (const m of geminiModels()) list.push(gemini(m));
+export type Order = "quality" | "speed";
+
+function providers(order: Order): Provider[] {
+  const groqList = process.env.GROQ_API_KEY ? groqModels().map(groq) : [];
+  const geminiList = process.env.GEMINI_API_KEY ? geminiModels().map(gemini) : [];
+  const list: Provider[] = order === "speed" ? [...groqList, ...geminiList] : [...geminiList, ...groqList];
   if (process.env.OPENROUTER_API_KEY) {
     for (const m of (process.env.OPENROUTER_MODELS ?? "").split(",").map((s) => s.trim()).filter(Boolean)) list.push(openRouter(m));
   }
@@ -206,21 +307,27 @@ export async function generateJSON<T>(opts: {
   prompt: string;
   schema: z.ZodType<T>;
   effort?: Effort;
+  order?: Order;
   timeoutMs?: number;
 }): Promise<{ data: T; model: string; attempts: Attempt[] }> {
   const jsonSchema = z.toJSONSchema(opts.schema) as Record<string, unknown>;
   delete jsonSchema.$schema;
-  // The schema also goes in the prompt: not every fallback model enforces response_format.
-  const system = `${opts.system}\n\nRespond with a single JSON object and nothing else. It must validate against this JSON Schema:\n${JSON.stringify(jsonSchema)}`;
+  const system = `${opts.system}\n\nRespond with a single JSON object and nothing else.`;
+  const systemWithSchema = `${system} It must validate against this JSON Schema:\n${JSON.stringify(jsonSchema)}`;
   const attempts: Attempt[] = [];
 
-  for (const provider of providers()) {
+  for (const provider of providers(opts.order ?? "quality")) {
     let prompt = opts.prompt;
+    const refusal = provider.cannotTake?.({ system, systemWithSchema, prompt, jsonSchema, effort: opts.effort ?? "low", timeoutMs: opts.timeoutMs ?? 45_000 });
+    if (refusal) {
+      attempts.push({ model: provider.name, ok: false, ms: 0, error: `Skipped: ${refusal}` });
+      continue;
+    }
     // Two tries per provider: the second is a repair pass that shows the model its own validation errors.
     for (let attempt = 0; attempt < 2; attempt++) {
       const started = Date.now();
       try {
-        const raw = await provider.call({ system, prompt, jsonSchema, effort: opts.effort ?? "low", timeoutMs: opts.timeoutMs ?? 45_000 });
+        const raw = await provider.call({ system, systemWithSchema, prompt, jsonSchema, effort: opts.effort ?? "low", timeoutMs: opts.timeoutMs ?? 45_000 });
         const parsed = opts.schema.safeParse(extractJSON(raw));
         if (parsed.success) {
           markOk(provider.name);
@@ -247,7 +354,7 @@ export async function generateJSON<T>(opts: {
  * Streams text for Ask Meetscribe (step 4). Falls through to the next provider only if a provider
  * fails before its first token, because a half-streamed answer cannot be restarted invisibly.
  */
-export function streamText(opts: { system: string; prompt: string; effort?: Effort }): AsyncIterable<string> & { model: Promise<string> } {
+export function streamText(opts: { system: string; prompt: string; effort?: Effort; order?: Order }): AsyncIterable<string> & { model: Promise<string> } {
   let resolveModel!: (m: string) => void;
   let rejectModel!: (e: unknown) => void;
   const model = new Promise<string>((res, rej) => ((resolveModel = res), (rejectModel = rej)));
@@ -255,7 +362,12 @@ export function streamText(opts: { system: string; prompt: string; effort?: Effo
 
   async function* run(): AsyncGenerator<string> {
     const errors: string[] = [];
-    for (const provider of providers()) {
+    for (const provider of providers(opts.order ?? "quality")) {
+      const refusal = provider.cannotTake?.({ system: opts.system, prompt: opts.prompt, effort: opts.effort ?? "low", timeoutMs: 60_000 });
+      if (refusal) {
+        errors.push(`${provider.name}: skipped, ${refusal}`);
+        continue;
+      }
       let yielded = false;
       try {
         for await (const token of streamProvider(provider.name, opts)) {
@@ -286,10 +398,22 @@ async function* streamProvider(name: string, opts: { system: string; prompt: str
     yield* geminiStream(name, geminiBody(opts.system, opts.prompt, opts.effort ?? "low"), 60_000);
     return;
   }
-  const res = await fetch(OPENROUTER_URL, {
+  // Groq and OpenRouter both speak the OpenAI streaming format.
+  const onGroq = groqModels().includes(name);
+  const res = await fetch(onGroq ? GROQ_URL : OPENROUTER_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${env("OPENROUTER_API_KEY")}`, "X-Title": "Meetscribe" },
-    body: JSON.stringify({ model: name, stream: true, temperature: 0.2, messages: [{ role: "system", content: opts.system }, { role: "user", content: opts.prompt }] }),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env(onGroq ? "GROQ_API_KEY" : "OPENROUTER_API_KEY")}`,
+      ...(onGroq ? {} : { "X-Title": "Meetscribe" }),
+    },
+    body: JSON.stringify({
+      model: name,
+      stream: true,
+      temperature: 0.2,
+      ...(onGroq ? { max_completion_tokens: GROQ_MAX_COMPLETION_TOKENS, ...(name.includes("gpt-oss") ? { reasoning_effort: opts.effort ?? "low" } : {}) } : {}),
+      messages: [{ role: "system", content: opts.system }, { role: "user", content: opts.prompt }],
+    }),
     signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
