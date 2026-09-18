@@ -15,6 +15,7 @@ async function main() {
   const chunks = await db.select().from(schema.transcriptChunks).where(eq(schema.transcriptChunks.meetingId, id));
   const parts = await db.select().from(schema.participants).where(eq(schema.participants.meetingId, id));
   const byStart = new Map(segs.map((x) => [x.startMs, x]));
+  const ties = segs.length - byStart.size;
   let cites = 0, bad = 0;
   const quote = (ms: number) => { cites++; const g = byStart.get(ms); if (!g) { bad++; return `      !! ${ms} ms is NOT a segment start`; } return `      ↳ ${formatOffset(ms)} ${g.speaker}: ${g.text.slice(0, 120)}${g.text.length > 120 ? "…" : ""}`; };
 
@@ -27,6 +28,6 @@ async function main() {
   }
   console.log("ACTION ITEMS");
   for (const it of items) { console.log(`  ☐ ${it.text}  [${it.assigneeName ?? "unassigned"}${it.dueDate ? ", due " + it.dueDate : ""}] origin=${it.origin}`); if (it.sourceMs !== null) console.log(quote(it.sourceMs)); }
-  console.log(`\nCITATION CHECK  ${cites} citations, ${bad} not matching a real segment start`);
+  console.log(`\nCITATION CHECK  ${cites} citations, ${bad} not matching a real segment start | segments sharing an offset: ${ties}`);
 }
 main().catch((e) => { console.error(e); process.exit(1); });

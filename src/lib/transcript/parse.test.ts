@@ -227,6 +227,15 @@ describe("edge cases", () => {
     expect(t.durationMs).toBe(9000 + 3 * MS_PER_WORD);
   });
 
+  it("gives every segment a unique start, so an offset identifies exactly one segment", () => {
+    // One-second timestamps collide constantly in fast back-and-forth: 67 of 244 segments in the AMI fixture.
+    const t = parseTranscript("[00:10] A: what if it had a little screen\n[00:10] B: So\n[00:10] A: yeah\n[00:11] B: that would be cool");
+    const starts = t.segments.map((s) => s.startMs);
+    expect(starts).toEqual([10000, 10001, 10002, 11000]);
+    expect(new Set(starts).size).toBe(starts.length);
+    for (const s of t.segments) expect(s.endMs).toBeGreaterThanOrEqual(s.startMs);
+  });
+
   it("numbers segments from zero in order", () => {
     const t = parseTranscript("[00:03] Priya: Hello.\n[00:09] Marcus: Hi.");
     expect(t.segments.map((s) => s.idx)).toEqual([0, 1]);

@@ -236,11 +236,16 @@ export function parseTranscript(input: string): ParsedTranscript {
 
   const timestampsEstimated = format === "speaker" || format === "plain";
   const segments: ParsedSegment[] = [];
+  const usedStarts = new Set<number>();
   let cursor = 0;
 
   spoken.forEach((d, idx) => {
     const estimated = countWords(d.text) * MS_PER_WORD;
-    const startMs = timestampsEstimated ? cursor : (d.startMs ?? cursor);
+    let startMs = timestampsEstimated ? cursor : (d.startMs ?? cursor);
+    // Citations and deep links address a segment by its offset, so offsets must be unique. With
+    // one-second timestamps, quick exchanges collide; break ties by 1 ms (invisible at mm:ss).
+    while (usedStarts.has(startMs)) startMs += 1;
+    usedStarts.add(startMs);
     let endMs: number;
     if (timestampsEstimated) {
       endMs = startMs + estimated;

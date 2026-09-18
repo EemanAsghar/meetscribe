@@ -120,7 +120,7 @@ const actionOutput = z.object({
       task: z.string().describe("Starts with a verb. Self-contained: readable without the transcript."),
       assignee: z.string().nullable().describe("Exactly one of the participant names, or null when no owner was stated"),
       due_date: z.string().nullable().describe("YYYY-MM-DD, only when a deadline was stated. Otherwise null."),
-      source_segment: z.number().int().describe("Index of the transcript line where this was committed to"),
+      source_segments: z.array(z.number().int()).describe("1 to 3 indices of the lines that state the task and who owns it"),
     }),
   ),
 });
@@ -137,12 +137,15 @@ export async function generateActionItems(input: {
 
 The transcript is given one line per turn as: [index] (time) Speaker: text
 
-An action item is something a person committed to do, or was asked to do and accepted, after the meeting. Not: things already done, general wishes, opinions, or topics that were only discussed.
+An action item is a piece of work someone is expected to do after the meeting. That includes:
+- something a person says they will do ("I'll send the deck"),
+- something a person is asked or assigned to do, including by a manager or chair handing out tasks. A brief or silent acceptance still counts; the assignment is what matters.
+Not action items: things already done, general wishes, opinions, and topics that were only discussed.
 
 Rules:
 - assignee must be exactly one of these names, or null: ${input.participants.map((p) => JSON.stringify(p)).join(", ")}. When someone says "I'll do it", the assignee is that speaker.
 - due_date only when a deadline was actually stated. The meeting took place on ${input.meetingDate.toISOString().slice(0, 10)} (${input.meetingDate.toLocaleDateString("en", { weekday: "long", timeZone: "UTC" })}); resolve "Friday" or "next week" against that date. Otherwise null.
-- source_segment is the [index] of the line where the commitment was made. It must be an index that appears in the transcript.
+- source_segments are the [index] numbers of the 1 to 3 lines that say what is to be done and by whom, most informative first. This is only about which lines to cite: point at the line where the task is described, because a reply like "okay" tells a reader nothing. It does not change whether something is an action item. Only use indices that appear in the transcript.
 - Merge duplicates. Order by when they came up. If there are none, return an empty list.${input.notes?.trim() ? "\n- The owner's notes in <owner_notes> correct the transcript. If they change an owner, a date or a task, use the corrected version." : ""}`;
 
   const { data, model, attempts } = await generateJSON({
@@ -154,11 +157,15 @@ Rules:
   });
 
   const startByIdx = new Map(input.segments.map((s) => [s.idx, s.startMs]));
+  const wordsByIdx = new Map(input.segments.map((s) => [s.idx, s.text.split(/\s+/).filter(Boolean).length]));
   const byLower = new Map(input.participants.map((p) => [p.toLowerCase(), p]));
   let dropped = 0;
 
   const items = data.items.flatMap((item) => {
-    const sourceMs = startByIdx.get(item.source_segment);
+    // Same grounding rule as summaries: real indices only, and a substantive line beats "okay".
+    const real = item.source_segments.filter((i) => startByIdx.has(i));
+    const best = real.find((i) => (wordsByIdx.get(i) ?? 0) > 3) ?? real[0];
+    const sourceMs = best === undefined ? undefined : startByIdx.get(best);
     if (sourceMs === undefined || !item.task.trim()) {
       dropped++;
       return [];

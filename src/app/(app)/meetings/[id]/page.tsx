@@ -183,8 +183,12 @@ function ActionsTab({ meeting, items, processing }: { meeting: Meeting; items: A
 }
 
 function TranscriptTab({ meeting, segments, speakers, targetMs }: { meeting: Meeting; segments: TranscriptSegment[]; speakers: string[]; targetMs: number | null }) {
-  // The target is the last segment that starts at or before t.
-  const target = targetMs === null ? null : [...segments].reverse().find((s) => s.startMs <= targetMs) ?? segments[0] ?? null;
+  // Offsets are unique per segment, so a citation resolves exactly. A hand-typed t falls back to the
+  // last segment that starts at or before it.
+  const target =
+    targetMs === null
+      ? null
+      : (segments.find((s) => s.startMs === targetMs) ?? [...segments].reverse().find((s) => s.startMs <= targetMs) ?? segments[0] ?? null);
   return (
     <div className="mx-auto max-w-3xl px-5 py-4">
       {target && <ScrollIntoView targetId={`seg-${target.idx}`} />}
