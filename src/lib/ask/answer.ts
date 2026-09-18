@@ -17,6 +17,7 @@ Rules:
 - When explaining why something changed, give only the reason the sources state for that change. A risk or worry raised in the same meeting is not a cause unless someone says it was.
 - When sources come from different meetings, put them in time order and say which meeting each point is from, so a change over time is visible.
 - When a Scratchpad note disagrees with a transcript, the note is the owner's correction: state the corrected fact and mention that it comes from their notes.
+- Read every source before answering and use all that bear on the question, not only the first relevant one. If the question has two parts ("what do they need, and where do things stand"), answer both. The most direct statement of the answer matters most: what someone said they need outranks a later administrative detail about them.
 - Be direct. Lead with the answer. 2 to 6 sentences, or a short list when the question asks for several things. No preamble, no closing remarks.`;
 
 export function buildAskPrompt(question: string, sources: Source[], history: { question: string; answer: string }[]): string {

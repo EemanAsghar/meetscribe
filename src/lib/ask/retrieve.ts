@@ -5,11 +5,11 @@ import { embed } from "@/lib/llm";
 import { fuse } from "./fuse";
 
 // Hybrid retrieval (SPEC.md section 5): top 20 by vector distance, top 20 by full-text rank, fused by
-// reciprocal rank, at most 4 chunks per meeting, top 10 kept. Names and numbers are where embeddings
+// reciprocal rank, at most 4 chunks per meeting, top 12 kept. Names and numbers are where embeddings
 // alone miss, which is why the keyword leg exists.
 
 export const PER_LEG = 20;
-export const KEEP = 10;
+export const KEEP = 12;
 export const PER_MEETING = 4;
 /**
  * Relevance floor. Cosine similarity of gemini-embedding-001 (768 dims, normalised) on meeting chunks:
@@ -51,13 +51,14 @@ const COLUMNS = sql`c.id, c.meeting_id as "meetingId", m.title as "meetingTitle"
 export async function retrieve(input: { ownerId: string; question: string; scope?: AskScope }): Promise<{ sources: Source[]; keywordOnly: boolean; bestSimilarity: number | null }> {
   const where = scopeFilter(input.ownerId, input.scope ?? {});
 
-  // Keyword leg. plainto_tsquery ANDs every word, which almost never matches a natural question, so the
+  // Keyword leg. The meeting title counts as part of every chunk, for the same reason it is embedded with it.
+  // plainto_tsquery ANDs every word, which almost never matches a natural question, so the
   // terms are OR-ed instead; ts_rank still puts chunks matching more of them first.
   const keyword = db.execute(sql`
     with q as (select nullif(replace(plainto_tsquery('english', ${input.question})::text, '&', '|'), '')::tsquery as tsq)
-    select ${COLUMNS}, ts_rank(c.tsv, q.tsq) as rank
+    select ${COLUMNS}, ts_rank(c.tsv || to_tsvector('english', m.title), q.tsq) as rank
     from transcript_chunks c join meetings m on m.id = c.meeting_id, q
-    where ${where} and q.tsq is not null and c.tsv @@ q.tsq
+    where ${where} and q.tsq is not null and (c.tsv || to_tsvector('english', m.title)) @@ q.tsq
     order by rank desc limit ${PER_LEG}`);
 
   let keywordOnly = false;

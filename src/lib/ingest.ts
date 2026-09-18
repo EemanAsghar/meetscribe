@@ -129,7 +129,8 @@ export async function processMeeting(meetingId: string) {
       timed("summary", () => generateSummary({ segments, sections: template.sections, templateName: template.name, notes })),
       timed("actionItems", () => generateActionItems({ segments, participants: participants.map((p) => p.name), meetingDate: meeting.startedAt, notes })),
       // Embeddings are best effort: without them Ask falls back to full-text search (SPEC.md section 5).
-      timed("embeddings", () => embedChunks(meetingId)).catch((error) => console.error("embedding failed", meetingId, error)),
+      // They carry the meeting title, so an untitled meeting is embedded below, once the model has named it.
+      meeting.title === PLACEHOLDER_TITLE ? null : timed("embeddings", () => embedChunks(meetingId)).catch((error) => console.error("embedding failed", meetingId, error)),
     ]);
 
     await saveSummary(meetingId, template.id, summary, notesVersion);
@@ -138,6 +139,7 @@ export async function processMeeting(meetingId: string) {
       .update(schema.meetings)
       .set({ status: "ready", error: null, ...(meeting.title === PLACEHOLDER_TITLE && summary.title ? { title: summary.title } : {}) })
       .where(eq(schema.meetings.id, meetingId));
+    if (meeting.title === PLACEHOLDER_TITLE) await timed("embeddings", () => embedChunks(meetingId)).catch((error) => console.error("embedding failed", meetingId, error));
 
     const report = { meetingId, timings, summary: { model: summary.model, attempts: summary.attempts, ...summary.stats }, actions: { model: actions.model, attempts: actions.attempts, items: actions.items.length, dropped: actions.dropped } };
     console.log("processMeeting", JSON.stringify(report));
@@ -227,14 +229,25 @@ export async function indexScratchpad(meetingId: string, content: string) {
     if (last && (last + " " + p).split(/\s+/).length <= 250) texts[texts.length - 1] = `${last}\n\n${p}`;
     else texts.push(p);
   }
-  const vectors = await embed(texts, "RETRIEVAL_DOCUMENT").catch(() => null);
+  const [meeting] = await db.select({ title: schema.meetings.title }).from(schema.meetings).where(eq(schema.meetings.id, meetingId)).limit(1);
+  const vectors = await embed(texts.map((t) => embeddingText(meeting?.title ?? "", t)), "RETRIEVAL_DOCUMENT").catch(() => null);
   await db.insert(schema.transcriptChunks).values(texts.map((text, i) => ({ meetingId, kind: "note" as const, speakerLabel: "Scratchpad", text, embedding: vectors?.[i] })));
   return texts.length;
 }
 
+/**
+ * What gets embedded is the chunk WITH its meeting title in front. People in a meeting about Harbor Logistics
+ * do not keep saying "Harbor Logistics", so a chunk embedded alone does not know what it is about. Measured:
+ * "What does Harbor Logistics need?" did not retrieve the passage listing their must-haves until this was added.
+ */
+export function embeddingText(meetingTitle: string, chunkText: string): string {
+  return meetingTitle && meetingTitle !== PLACEHOLDER_TITLE ? `${meetingTitle}\n${chunkText}` : chunkText;
+}
+
 export async function embedChunks(meetingId: string) {
+  const [meeting] = await db.select({ title: schema.meetings.title }).from(schema.meetings).where(eq(schema.meetings.id, meetingId)).limit(1);
   const chunks = await db.select({ id: schema.transcriptChunks.id, text: schema.transcriptChunks.text }).from(schema.transcriptChunks).where(eq(schema.transcriptChunks.meetingId, meetingId));
-  const vectors = await embed(chunks.map((c) => c.text), "RETRIEVAL_DOCUMENT");
+  const vectors = await embed(chunks.map((c) => embeddingText(meeting?.title ?? "", c.text)), "RETRIEVAL_DOCUMENT");
   for (let i = 0; i < chunks.length; i += 20) {
     await Promise.all(chunks.slice(i, i + 20).map((c, j) => db.update(schema.transcriptChunks).set({ embedding: vectors[i + j] }).where(eq(schema.transcriptChunks.id, c.id))));
   }
