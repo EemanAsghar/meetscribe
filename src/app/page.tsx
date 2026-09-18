@@ -64,7 +64,7 @@ export default async function LandingPage() {
           <Brand className="text-base" />
           <nav className="flex items-center gap-1">
             <Button asChild variant="ghost" size="md" className="hidden sm:inline-flex"><a href={REPO} target="_blank" rel="noreferrer"><Github /> Source</a></Button>
-            <Button asChild variant="ghost" size="md"><Link href="/login">Sign in</Link></Button>
+            <Button asChild variant="ghost" size="md"><Link href="/login">Sign in with GitHub</Link></Button>
             <Button asChild variant="primary" size="md"><Link href="/login">Try the demo <ArrowRight /></Link></Button>
           </nav>
         </div>
