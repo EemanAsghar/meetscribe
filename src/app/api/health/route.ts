@@ -1,10 +1,10 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { resolveDatabaseUrl } from "@/db/url";
 
 export const dynamic = "force-dynamic";
 
 const REQUIRED_ENV = [
-  "DATABASE_URL",
   "SESSION_SECRET",
   "GEMINI_API_KEY",
   "GEMINI_MODEL",
@@ -36,6 +36,7 @@ export async function GET() {
       db_ms: Date.now() - started,
       region: process.env.VERCEL_REGION ?? "local",
       commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+      db_url_from: resolveDatabaseUrl().from,
       env: envPresence(),
     });
   } catch (error) {
