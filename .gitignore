@@ -1,0 +1,4 @@
+# capture hook bookkeeping (counters, lock, error log). The logs themselves live in .agent-logs/ and ARE committed.
+.claude/capture-state/
+.claude/settings.local.json
+.DS_Store
