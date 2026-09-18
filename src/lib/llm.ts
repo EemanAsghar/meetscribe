@@ -12,7 +12,7 @@ import { z } from "zod";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const EMBEDDING_MODEL = "gemini-embedding-001";
-const DEFAULT_GEMINI_FALLBACKS = "gemini-3.6-flash,gemini-3.5-flash";
+const DEFAULT_GEMINI_FALLBACKS = "gemini-3.6-flash,gemini-3.5-flash,gemini-3.8-flash";
 const FIRST_TOKEN_TIMEOUT_MS = 12_000;
 const BREAKER_MS = 3 * 60_000;
 export const EMBEDDING_DIMENSIONS = 768;
