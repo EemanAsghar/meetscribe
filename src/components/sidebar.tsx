@@ -16,7 +16,7 @@ const NAV = [
 
 const whenFmt = new Intl.DateTimeFormat("en", { weekday: "short", hour: "numeric", minute: "2-digit" });
 
-export function Sidebar({ user, signOut, upcoming }: { user: { name: string; avatarColor: string }; signOut: () => Promise<void>; upcoming: { id: string; title: string; startsAt: string }[] }) {
+export function Sidebar({ user, signOut, upcoming }: { user: { name: string; avatarColor: string; isDemo: boolean }; signOut: () => Promise<void>; upcoming: { id: string; title: string; startsAt: string }[] }) {
   const pathname = usePathname();
   const router = useRouter();
   const [scheduling, setScheduling] = useState(false);
@@ -93,7 +93,7 @@ export function Sidebar({ user, signOut, upcoming }: { user: { name: string; ava
         </span>
         <div className="min-w-0 flex-1 leading-tight">
           <p className="truncate text-xs font-medium text-ink">{user.name}</p>
-          <p className="text-2xs text-ink-4">Demo workspace</p>
+          <p className="text-2xs text-ink-4">{user.isDemo ? "Demo workspace" : "Signed in with GitHub"}</p>
         </div>
         <form action={signOut}>
           <Button variant="ghost" size="icon" aria-label="Sign out" title="Sign out">
