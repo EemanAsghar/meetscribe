@@ -1,0 +1,25 @@
+[00:15] Priya Raman: Let's start. Marcus, you said you had news I wouldn't like.
+[00:27] Marcus Oyelaran: Yeah. So we did the first real offline test on Tuesday. Two phones, same route, both offline for an hour, both making changes. When they came back online we lost three stop updates out of twenty. Last write wins is not good enough, which is what I was afraid of.
+[01:33] Priya Raman: Okay. What's the fix?
+[01:42] Marcus Oyelaran: Per field merging with a change log on the device. It's not exotic, we know how to build it. But it's new code in the most sensitive part of the app, and then it needs a full QA pass on real devices, including the no signal cases.
+[02:33] Priya Raman: Give me the number.
+[02:39] Marcus Oyelaran: Two more weeks. One to build it, one for QA. I can't hit October sixth with offline done properly. I can hit October twentieth.
+[03:15] Eeman Asghar: What if we launch on the sixth without offline and add it after?
+[03:30] Priya Raman: I'd push back on that. I was on the Harbor Logistics call on Tuesday. Dana was completely clear: no offline, no deal. Two of their depots are inside the port with no signal. And I don't think they're unusual, that's who buys this product.
+[04:27] Tomás Ibarra: I agree. Offline is the whole reason they're talking to us instead of RouteWise. If we launch without it we've got nothing to say.
+[04:57] Eeman Asghar: Okay, that's convincing. I'd rather be two weeks late than launch the wrong thing. So October twentieth. Marcus, is that a real date or a hopeful date?
+[05:33] Marcus Oyelaran: It's a real date as long as the scope stops moving. Which brings me to single sign on.
+[05:51] Priya Raman: Go on.
+[05:57] Marcus Oyelaran: Harbor needs SAML with Microsoft. We can do it, it's about four days. But I don't want it in Starter. It's the kind of thing that generates support tickets forever, and it's what people pay for in Pro.
+[06:42] Tomás Ibarra: That matches the pricing plan, SSO was always a Pro feature.
+[06:57] Priya Raman: Agreed. SAML single sign on, Pro tier only, in scope for launch. What about bulk import?
+[07:21] Marcus Oyelaran: I'd cut it. Dana called it a nice to have herself. If I have to find four days for SSO, that's where they come from.
+[07:48] Lena Fischer: I'm fine with that from the design side. I haven't started the import screens. But I'd like that decided properly at the design review so I'm not designing around a maybe.
+[08:21] Priya Raman: Fair. Let's say bulk import is likely out of version one and we confirm it at the design review. Anything on Paywell?
+[08:48] Marcus Oyelaran: Application went in on the twenty seventh of August. They've acknowledged it, they say four to six weeks. If it's six weeks we're tight even for the twentieth.
+[09:27] Priya Raman: So Paywell is now the biggest risk to the new date.
+[09:36] Marcus Oyelaran: It is. I'll chase them every week. I've asked for a named reviewer.
+[09:54] Priya Raman: Okay. Reading it back. Launch moves from October sixth to October twentieth because offline sync needs per field merging and a proper QA pass. SSO is in, Pro only. Bulk import is probably out, to be confirmed. Marcus owns the offline rebuild and chasing Paywell weekly. Tomás, can you tell the beta customers the new date?
+[11:06] Tomás Ibarra: Yes. I'll email all five today. Harbor's port depot goes live on the beta Monday regardless, that doesn't change.
+[11:33] Eeman Asghar: Good. And Priya, put the date change in the company update, with the reason. I don't want people hearing it sideways.
+[11:57] Priya Raman: Will do, it'll go out Friday.

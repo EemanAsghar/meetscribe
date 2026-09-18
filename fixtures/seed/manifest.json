@@ -1,0 +1,9 @@
+[
+  { "file": "01-dispatch-launch-kickoff.txt", "title": "Dispatch Launch Kickoff", "startedAt": "2026-08-25T10:00:00+05:00", "source": "scheduled" },
+  { "file": "02-harbor-logistics-discovery.txt", "title": "Harbor Logistics Discovery Call", "startedAt": "2026-09-01T16:30:00+05:00", "source": "scheduled" },
+  { "file": "03-engineering-sync-offline-qa.txt", "title": "Engineering Sync: Offline Mode and QA", "startedAt": "2026-09-03T11:00:00+05:00", "source": "scheduled" },
+  { "file": "04-pricing-review.txt", "title": "Dispatch Pricing Review", "startedAt": "2026-09-08T14:00:00+05:00", "source": "instant" },
+  { "file": "05-dispatch-standup.txt", "title": "Dispatch Standup", "startedAt": "2026-09-10T09:30:00+05:00", "source": "scheduled" },
+  { "file": "06-launch-readiness-go-no-go.txt", "title": "Launch Readiness: Go / No-Go", "startedAt": "2026-09-15T15:00:00+05:00", "source": "scheduled" },
+  { "file": "07-onboarding-design-review.txt", "title": "Onboarding Design Review", "startedAt": "2026-09-17T12:00:00+05:00", "source": "upload" }
+]

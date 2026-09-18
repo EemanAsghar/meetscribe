@@ -1,0 +1,28 @@
+[00:09] Tomás Ibarra: Dana, thanks for making the time. I've got Priya with me, she runs product for Dispatch. We'd mostly like to listen today. Could you start with how dispatching works at Harbor right now?
+[00:51] Dana Whitfield: Sure. So we run about a hundred and twenty drivers across three depots. Every morning the dispatchers build the routes in a spreadsheet, and then, I'm slightly embarrassed to say this, they send them out over WhatsApp.
+[01:42] Priya Raman: You'd be surprised how common that is. What goes wrong with it?
+[01:54] Dana Whitfield: Everything that changes after seven a.m. A customer cancels, a truck breaks down, and now the dispatcher is calling four drivers one by one. And we have no record of who was told what. Last month a driver went to a site that had been cancelled two hours earlier. That's a wasted morning and an angry customer.
+[03:06] Tomás Ibarra: How often would you say a route changes after it's been sent?
+[03:18] Dana Whitfield: Every day. I'd guess fifteen, twenty changes a day across the three depots.
+[03:39] Priya Raman: And the drivers, what phones are they on, what's connectivity like?
+[03:54] Dana Whitfield: Mixed Android, a few iPhones. Connectivity is the big one. Two of our depots serve the port and the industrial estate, and inside the port there's basically no signal. So anything that needs a live connection is useless to us for half the day.
+[04:51] Priya Raman: So offline isn't a nice to have for you.
+[05:00] Dana Whitfield: No. If the app can't show today's route with no signal, we can't use it. That's a must. It needs to work offline and catch up when the driver's back in range.
+[05:39] Tomás Ibarra: That's really clear, thank you. What else is on the must have list?
+[05:54] Dana Whitfield: Single sign on. Our IT team won't approve anything that has its own passwords, we got burned on that. We're on Microsoft. And proof of delivery, a photo and a signature. Those three. Everything else is nice to have.
+[06:48] Priya Raman: What would be on the nice to have list?
+[06:57] Dana Whitfield: Importing our driver list from a spreadsheet so I don't type in a hundred and twenty people. And some kind of report at the end of the week. But I'd live without both at the start.
+[07:36] Tomás Ibarra: Can I ask about budget directly? We're thinking about pricing per driver per month.
+[07:54] Dana Whitfield: That's how everyone prices it. RouteWise quoted us forty five a seat. Honestly, for something that actually works offline, I could get forty dollars a seat approved without a fight. Above fifty I'd have to go to the board.
+[08:48] Tomás Ibarra: That's very helpful. And if I told you our entry tier was twenty nine?
+[09:03] Dana Whitfield: I'd wonder what was missing. No offence. At our size a cheap tool makes procurement nervous, not happy.
+[09:30] Priya Raman: None taken, that's useful to hear. Who else is involved in the decision?
+[09:45] Dana Whitfield: Me, our head of IT, that's Robert, for the security review, and the finance director signs anything over fifty thousand a year. We want to decide by the end of September, because our RouteWise trial ends then.
+[10:33] Tomás Ibarra: So you're actively evaluating RouteWise.
+[10:42] Dana Whitfield: We are. Their dispatcher console is good. Their driver app is bad, and it does not work offline, which is why I'm talking to you.
+[11:12] Priya Raman: Would you be open to joining our beta? You'd get the driver app in the next couple of weeks, and we'd want blunt feedback.
+[11:36] Dana Whitfield: Yes, with one depot to start. The port depot, since that's the hard case. Maybe thirty drivers.
+[12:00] Tomás Ibarra: Perfect. I'll send the beta agreement today, and I'll set up a call with Robert about single sign on. Priya, anything else?
+[12:27] Priya Raman: Just one. If offline worked perfectly but single sign on came a month after launch, is that a deal breaker?
+[12:51] Dana Whitfield: For the beta, no. For signing a contract, yes. Robert won't move on that.
+[13:12] Tomás Ibarra: Understood. Thank you Dana, this was exactly what we needed.

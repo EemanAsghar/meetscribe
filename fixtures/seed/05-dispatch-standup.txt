@@ -1,0 +1,15 @@
+[00:09] Priya Raman: Quick standup, ten minutes. Marcus first.
+[00:18] Marcus Oyelaran: Offline merge is built. Per field merging with the device change log, it went into the beta build last night. We re-ran the two phone test, twenty out of twenty updates survived this time. Today I'm starting the device QA matrix. Blocker: Paywell. They were supposed to assign a reviewer last week and haven't. I've emailed twice.
+[01:30] Priya Raman: When do you need an answer by before it threatens October twentieth?
+[01:42] Marcus Oyelaran: If I don't have a reviewer by the fifteenth, I'd start to worry. Their review itself takes about two weeks once it starts.
+[02:09] Priya Raman: Okay. I'll escalate through their partnerships person today, I met her at the conference. Lena?
+[02:30] Lena Fischer: Onboarding flow is designed, first version. I finished the empty state for the map and the three step setup. I'm testing it with two dispatchers tomorrow. Today I'm doing the offline indicator, so drivers can tell whether what they're looking at is synced. No blockers. Design review is still the seventeenth.
+[03:36] Priya Raman: Good. Tomás?
+[03:42] Tomás Ibarra: All five beta customers are live as of Monday. Harbor's port depot has thirty one drivers on it. Pricing page copy went to Lena on Friday. Beta grandfathering letters go out today. One thing to flag: Harbor's IT lead, Robert, wants a security questionnaire filled in before he'll look at SSO. It's about ninety questions.
+[04:54] Marcus Oyelaran: Send it to me, I'll do the technical half. But not this week.
+[05:09] Tomás Ibarra: He wants it by the twenty second. That works?
+[05:18] Marcus Oyelaran: That works.
+[05:24] Priya Raman: Eeman, anything from you?
+[05:30] Eeman Asghar: Just that I've started on the launch webinar. I'm thinking the week after launch, not launch day, so we have a real customer story to tell. I'd like Dana from Harbor on it if she's willing.
+[06:09] Tomás Ibarra: I'll ask her once the beta has a couple of good weeks behind it.
+[06:24] Priya Raman: Great. So the one blocker is Paywell, I own the escalation, and we revisit on the fifteenth at the readiness meeting. That's it, thanks all.

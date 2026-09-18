@@ -1,0 +1,24 @@
+[00:15] Priya Raman: This is the readiness check for October twentieth. I'll go area by area and then we make a call. Marcus, engineering.
+[00:39] Marcus Oyelaran: Product is in good shape. Offline QA is sixty percent through the device matrix with two minor bugs, both fixed. SSO works against Microsoft in staging. If it were only up to us, I'd say go for the twentieth. It isn't only up to us.
+[01:33] Priya Raman: Paywell.
+[01:39] Marcus Oyelaran: Paywell. Priya's escalation worked, we got a named reviewer on Friday. The bad news is what she told us: their review slot is the week of October twelfth, and they issue certificates on a fixed schedule. The earliest we can be certified is October twenty third.
+[02:36] Eeman Asghar: So three days after our launch date.
+[02:45] Marcus Oyelaran: Three days after. And without the certificate we cannot take card payments in the app. We could launch with invoicing only, but that means no self serve signup, which is most of the Starter tier.
+[03:27] Tomás Ibarra: I really don't want to launch Starter without self serve. The whole point of thirty nine dollars a seat is that someone with fifteen drivers can sign up on a Tuesday night without talking to me.
+[04:03] Priya Raman: Options as I see them. One, launch on the twentieth, invoice only, turn on cards on the twenty third. Two, move the launch to the week after certification.
+[04:39] Eeman Asghar: What does option one actually buy us? Three days, and a launch where the main button doesn't work. I don't like it. If the twenty third is firm, let's launch on Tuesday the twenty seventh and have everything working.
+[05:24] Marcus Oyelaran: The twenty third is firm on their side, she put it in writing. It gives us the Monday to verify payments in production before we announce.
+[05:54] Priya Raman: Then I'm recommending we move. Launch goes from October twentieth to October twenty seventh, and the reason is the Paywell certification date, not the product. Any objection?
+[06:33] Tomás Ibarra: None. One more week of beta data helps me anyway.
+[06:45] Lena Fischer: No objection. It gives me time to polish the onboarding after Thursday's review.
+[07:03] Eeman Asghar: Agreed. October twenty seventh. And I want this to be the last move. If something else slips, we cut scope, not the date.
+[07:30] Priya Raman: Noted, and I'll say that in the update. Tomás, beta status.
+[07:45] Tomás Ibarra: Four of the five beta customers are active daily. The fifth, Dunmore, has gone quiet, I'm calling them tomorrow. Harbor is the star. Thirty one drivers at the port depot, and Dana told me on Friday that the offline mode is, her words, the first time a tool has worked inside the port. They've signed a letter of intent for a hundred and twenty seats.
+[09:03] Eeman Asghar: At what price?
+[09:09] Tomás Ibarra: Thirty nine, Starter list, for the seats. They're a beta customer so they were entitled to twenty nine, and Dana chose to sign at list because she wants SSO, which means Pro for the admin seats, and she didn't want the grandfathered rate complicating the board paper. I did not argue.
+[10:12] Priya Raman: That's a remarkable sentence. Is the security questionnaire still due the twenty second?
+[10:30] Marcus Oyelaran: Yes, and I'm halfway through. It'll be done.
+[10:42] Priya Raman: Marketing. Eeman?
+[10:48] Eeman Asghar: The webinar moves with the launch. It was going to be the twenty second, it's now Thursday October twenty ninth. Dana has agreed to join for fifteen minutes. I need a draft of the launch blog post from Tomás by the sixteenth of October.
+[11:36] Tomás Ibarra: You'll have it.
+[11:42] Priya Raman: Then the call is go, for October twenty seventh. Actions: Marcus finishes device QA by October second and verifies payments in production on the twenty sixth. Tomás calls Dunmore tomorrow and drafts the blog post by the sixteenth. I'll send the date change to the company and the beta customers today. Thanks everyone.

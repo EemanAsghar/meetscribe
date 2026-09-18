@@ -1,0 +1,21 @@
+[00:12] Lena Fischer: Thanks for coming. I want decisions on three things today: the onboarding flow, the offline indicator, and whether bulk import is in or out. I tested the onboarding with two dispatchers last week, so I'll start with what I saw.
+[01:00] Priya Raman: Go ahead.
+[01:06] Lena Fischer: The three step setup works. Add a depot, add drivers, create a first route. Both dispatchers finished it in under six minutes without help. The problem is step two. Adding drivers one at a time is fine for five drivers and miserable for fifty. One of them literally sighed.
+[02:09] Marcus Oyelaran: Which is the argument for bulk import.
+[02:18] Lena Fischer: It is. But here's what I'd suggest instead. Let them paste a list of names and phone numbers, one per line, into a text box. No file upload, no column mapping, no error report. It covers the sigh, and it's a day of work, not a week.
+[03:12] Marcus Oyelaran: Paste a list I can do in a day, yes. The expensive part of bulk import was always the spreadsheet parsing and the validation screens.
+[03:39] Priya Raman: So the decision is: full spreadsheet bulk import is out of version one and moves to one point one. Paste a list of drivers is in. Everyone okay with that?
+[04:15] Marcus Oyelaran: Yes.
+[04:18] Lena Fischer: Yes. I'll design the paste box this week.
+[04:30] Priya Raman: Good. Offline indicator.
+[04:39] Lena Fischer: Two options on the screen. Option A is a banner across the top that says you're offline. Option B is a small status dot next to each stop, green for synced, grey for waiting. Drivers I showed it to preferred B, because the banner told them something they already knew. They know they're in the port. What they want to know is whether this particular stop update got through.
+[05:54] Marcus Oyelaran: B matches how the sync actually works now. It's per stop, per field. So we can show it truthfully.
+[06:18] Priya Raman: Any accessibility concern with relying on green versus grey?
+[06:33] Lena Fischer: Yes, good catch, and I've handled it. The waiting state is a hollow dot and the synced state is a filled dot with a tick, so it doesn't depend on colour. I checked it in greyscale.
+[07:12] Priya Raman: Then option B, per stop status dots. Last item?
+[07:27] Lena Fischer: The empty state on the map. When a new customer logs in there's nothing on it. I've replaced the empty map with a short checklist card, the same three steps, and it disappears once the first route is created. One of the dispatchers said it was the first time software had told her what to do next.
+[08:30] Priya Raman: I like it. Ship it. Is all of this achievable for October twenty seventh?
+[08:45] Lena Fischer: Yes. Paste box designed by Monday the twenty first, the status dots are already specified, and the checklist card is done. Marcus, when do you need final assets?
+[09:18] Marcus Oyelaran: October second at the latest. That's when device QA finishes and I don't want UI changes after it.
+[09:39] Lena Fischer: You'll have everything by September thirtieth.
+[09:51] Priya Raman: Great. Decisions: spreadsheet bulk import moves to version one point one, paste a list is in for launch. Offline indicator is option B, per stop status dots, not colour dependent. Checklist card replaces the empty map. Lena delivers final assets by September thirtieth. Thanks both.

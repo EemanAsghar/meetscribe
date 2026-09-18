@@ -1,0 +1,22 @@
+[00:12] Tomás Ibarra: Thanks for coming. I asked for this because I got the pricing wrong at the kickoff and I'd rather fix it now than after launch.
+[00:39] Eeman Asghar: That's a good way to open a meeting. What changed?
+[00:51] Tomás Ibarra: Three conversations. Harbor Logistics told us twenty nine dollars a seat makes procurement nervous, and that forty would be approved without a fight. Then two of the other beta customers, Kestrel Freight and Dunmore Haulage, I asked them the same question cold. Kestrel said thirty five to forty. Dunmore said they currently pay thirty eight for something worse.
+[02:03] Priya Raman: So nobody flinched at forty.
+[02:12] Tomás Ibarra: Nobody. And one person flinched at twenty nine, in the wrong direction. So my proposal: Starter moves from twenty nine to thirty nine dollars per seat per month.
+[02:48] Eeman Asghar: I said twenty nine felt low three weeks ago, so you'll get no argument from me. What about Pro?
+[03:09] Tomás Ibarra: Pro goes from fifty nine to sixty five. I'd keep the gap meaningful but I don't want to go over sixty nine, because that's where Dana said she'd need board approval, anything over fifty actually, so Pro is already a harder sale at her size.
+[04:03] Priya Raman: Wait, she said above fifty needs the board. So Pro at sixty five is a board decision for Harbor.
+[04:24] Tomás Ibarra: It is. But they need SSO, which is Pro only, so that's the conversation we have to have anyway. I'd rather defend sixty five with SSO and the API than discount Pro to avoid a meeting.
+[05:06] Eeman Asghar: Could we offer Harbor Pro at a launch partner rate?
+[05:18] Tomás Ibarra: That's my next point. I want to grandfather the five beta customers. They keep the original pricing, twenty nine Starter and fifty nine Pro, for twelve months from launch. They took a risk on us, and it makes the price increase a good news story for them instead of a bad one.
+[06:18] Priya Raman: I like that. It's cheap for us, it's five customers.
+[06:30] Eeman Asghar: Agreed. Twelve months, then they move to list price. Put it in writing so nobody argues about it next October.
+[06:54] Tomás Ibarra: Will do. Last change, the annual discount. I had twenty percent. With the higher list price I'd like to bring that down to fifteen. Twenty was compensating for a price I no longer think we need to apologise for.
+[07:39] Priya Raman: Does fifteen still get people to pay annually?
+[07:51] Tomás Ibarra: In our space, anything from ten to twenty does. I'm comfortable at fifteen.
+[08:09] Eeman Asghar: My only worry is the small operators. Ten, fifteen drivers. Thirty nine times fifteen is nearly six hundred a month, that's real money for them.
+[08:42] Tomás Ibarra: It's a fair worry, and it's the one thing I'm not sure about. I don't have data on the small end. What I'd suggest is we launch at thirty nine and I watch trial to paid conversion for accounts under twenty seats. If it's bad after sixty days, we add a small fleet plan. I don't want to design it now on a guess.
+[09:45] Eeman Asghar: Okay. Sixty days, then we look at the numbers.
+[09:57] Priya Raman: So, decisions. Starter thirty nine, up from twenty nine. Pro sixty five, up from fifty nine. Annual discount fifteen percent, down from twenty. Beta customers grandfathered at the old prices for twelve months from launch. And a review of small fleet conversion sixty days after launch. Tomás, you own updating the pricing page copy and the beta agreements.
+[11:12] Tomás Ibarra: Yes. Pricing page draft to Lena by Friday, beta letters out next week.
+[11:30] Priya Raman: And I'll update the launch plan. Good meeting, thank you for raising it.

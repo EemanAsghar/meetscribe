@@ -1,0 +1,29 @@
+[00:12] Priya Raman: Okay, I think that's everyone. So this is the kickoff for the Dispatch launch. I want to leave here with three things: a launch date, a first pass at pricing, and who owns what. Eeman, do you want to say anything before we start?
+[01:03] Eeman Asghar: Just briefly. Dispatch is the biggest thing we ship this year. Every customer call I've had since June ends with someone asking when drivers can get their routes on their phone. So I care more about it being solid than being early, but I don't want it drifting into next year either.
+[02:06] Priya Raman: Understood. Marcus, where is engineering honestly?
+[02:18] Marcus Oyelaran: Honestly? Route assignment works, the driver app works on a good connection. Offline mode is the part I'm nervous about. We have a prototype, it syncs, but conflict handling is basically last write wins right now and that's going to bite someone.
+[03:24] Priya Raman: How nervous, in weeks?
+[03:33] Marcus Oyelaran: If nothing surprises us, we're feature complete by mid September and then we need a proper QA pass. I'd say October sixth is achievable. I would not promise anything in September.
+[04:21] Eeman Asghar: October sixth is a Tuesday, right? I like a Tuesday launch.
+[04:33] Priya Raman: It is. Okay, so working launch date is October sixth. Marcus, I'm writing that down as your date, so shout early if it moves.
+[05:00] Marcus Oyelaran: I will. The other risk, just so it's on the record, is Paywell. We need their certification before we can take card payments inside the app, and I have no control over their queue.
+[05:42] Priya Raman: Noted. Who's the contact there?
+[05:51] Marcus Oyelaran: I am. I'll submit the application this week.
+[06:06] Priya Raman: Good. Lena, design?
+[06:15] Lena Fischer: The driver app flows are done and tested with four drivers. The dispatcher side, the web console, is about seventy percent. The thing I haven't touched is onboarding. Right now a new customer lands on an empty map and has no idea what to do.
+[07:12] Priya Raman: Can onboarding be ready for October sixth?
+[07:21] Lena Fischer: A basic version, yes. If you want the bulk import of drivers from a spreadsheet, that's a bigger piece and I'd want Marcus's opinion.
+[07:51] Marcus Oyelaran: Bulk import is maybe a week of backend work. It's not hard, it's just more surface area to test.
+[08:15] Priya Raman: Let's keep it in scope for now and revisit. Tomás, pricing. What are you thinking?
+[08:36] Tomás Ibarra: So I looked at what RouteWise and the two smaller competitors charge. They're all per driver per month. RouteWise is forty five dollars list. My proposal is two tiers. Starter at twenty nine dollars per seat per month, and Pro at fifty nine. Pro gets you single sign on, the API, and priority support.
+[09:54] Eeman Asghar: Twenty nine feels low to me. We're better than RouteWise on the driver app.
+[10:12] Tomás Ibarra: We are, but nobody knows that yet. I'd rather come in under them, win the first fifty logos, and raise it later. It's much easier to raise a price once people love the thing.
+[10:54] Eeman Asghar: Okay. I can live with twenty nine as a starting point, but I want us to test it against real buyers before launch, not after.
+[11:21] Tomás Ibarra: That's fair. I have a discovery call with Harbor Logistics next week, they've got over a hundred drivers. I'll ask the budget question directly.
+[11:54] Priya Raman: And annual billing?
+[12:03] Tomás Ibarra: Twenty percent off if you pay annually. That's standard in our space.
+[12:21] Priya Raman: Fine. So for now: Starter twenty nine, Pro fifty nine, twenty percent annual discount, all to be validated with customers. Last thing, the beta. How many customers do we want in it?
+[13:06] Marcus Oyelaran: Five. More than that and we're doing support instead of finishing the product.
+[13:24] Tomás Ibarra: I can get five. I already have three who've asked.
+[13:39] Priya Raman: Great, five beta customers, Tomás owns recruiting them, I want them live by September eighth. Let me read back the owners. Marcus: Paywell application this week, and the offline conflict handling. Lena: basic onboarding flow, designs to review by the seventeenth of September. Tomás: recruit five beta customers by September eighth and validate pricing on the Harbor call. I'll set up a weekly sync, Thursdays.
+[15:06] Eeman Asghar: Sounds right. Thanks everyone.

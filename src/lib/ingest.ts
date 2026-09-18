@@ -232,7 +232,7 @@ export async function indexScratchpad(meetingId: string, content: string) {
   return texts.length;
 }
 
-async function embedChunks(meetingId: string) {
+export async function embedChunks(meetingId: string) {
   const chunks = await db.select({ id: schema.transcriptChunks.id, text: schema.transcriptChunks.text }).from(schema.transcriptChunks).where(eq(schema.transcriptChunks.meetingId, meetingId));
   const vectors = await embed(chunks.map((c) => c.text), "RETRIEVAL_DOCUMENT");
   for (let i = 0; i < chunks.length; i += 20) {

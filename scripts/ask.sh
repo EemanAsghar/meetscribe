@@ -16,6 +16,12 @@ for line in sys.stdin:
     elif e['type']=='done':
         print(f\"   model {e['model']} | first token {first:.1f}s | done {time.time()-t0:.1f}s | citations removed as invalid: {e['removed']}\n\")
         print('   ' + e['text'].replace('\n','\n   ') + '\n')
+        groups={}
+        for c in e['citations']:
+            s=next(x for x in src if x['n']==c['n']); groups.setdefault((s['meetingDate'][:10], s['meetingTitle']), []).append(c['n'])
+        print('   SOURCES ROW (as grouped in the UI, by date):')
+        for (d,t),ns in sorted(groups.items()): print(f\"      {d}  {t}  {' '.join('['+str(n)+']' for n in ns)}\")
+        print()
         for c in e['citations']:
             s=next(x for x in src if x['n']==c['n'])
             when='notes' if c['start_ms']<0 else f\"{c['start_ms']//60000}:{c['start_ms']//1000%60:02d}\"
