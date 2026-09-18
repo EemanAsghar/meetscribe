@@ -15,7 +15,14 @@ function highlight(text: string, query: string) {
   return parts.map((part, i) => (i % 2 === 1 ? <mark key={i} className="rounded-sm bg-accent-soft px-0.5 text-accent-ink">{part}</mark> : part));
 }
 
-export function TranscriptView({ meetingId, segments, speakers, targetIdx, estimated }: { meetingId: string; segments: Segment[]; speakers: string[]; targetIdx: number | null; estimated: boolean }) {
+export function TranscriptView({ linkBase, segments, speakers, targetIdx, estimated }: {
+  /** Everything before the offset in a link to a moment: "/meetings/<id>?tab=transcript&t=" in the app, "/s/<slug>?t=" on a share page. */
+  linkBase: string;
+  segments: Segment[];
+  speakers: string[];
+  targetIdx: number | null;
+  estimated: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [copied, setCopied] = useState<number | null>(null);
@@ -33,7 +40,7 @@ export function TranscriptView({ meetingId, segments, speakers, targetIdx, estim
   }, [targetIdx]);
 
   async function copyLink(s: Segment) {
-    await navigator.clipboard.writeText(`${window.location.origin}/meetings/${meetingId}?tab=transcript&t=${s.startMs}`);
+    await navigator.clipboard.writeText(`${window.location.origin}${linkBase}${s.startMs}`);
     setCopied(s.idx);
     setTimeout(() => setCopied((c) => (c === s.idx ? null : c)), 1500);
   }
@@ -87,7 +94,7 @@ export function TranscriptView({ meetingId, segments, speakers, targetIdx, estim
             const sameSpeaker = i > 0 && visible[i - 1].speaker === s.speaker && visible[i - 1].idx === s.idx - 1;
             return (
               <li key={s.id} id={`seg-${s.idx}`} className={cn("group -mx-2 flex gap-3 rounded-md px-2 py-1 transition-colors", !sameSpeaker && i > 0 && "mt-2", targetIdx === s.idx && "bg-accent-soft ring-1 ring-accent-line")}>
-                <Timestamp meetingId={meetingId} ms={s.startMs} estimated={estimated} className="mt-0.5 w-12 shrink-0 justify-end bg-transparent text-ink-4 hover:bg-hover" />
+                <Timestamp href={`${linkBase}${s.startMs}`} ms={s.startMs} estimated={estimated} className="mt-0.5 w-12 shrink-0 justify-end bg-transparent text-ink-4 hover:bg-hover" />
                 <div className="min-w-0 flex-1">
                   {!sameSpeaker && <p className="text-xs font-semibold" style={{ color: speakerColor(s.speaker, speakers) }}>{s.speaker}</p>}
                   <p className="text-sm leading-relaxed text-ink">{highlight(s.text, q)}</p>

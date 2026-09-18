@@ -2,15 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, desc, eq } from "drizzle-orm";
-import { AlertTriangle, FileText, Loader2, MessageSquareText, NotebookPen, Sparkles } from "lucide-react";
+import { AlertTriangle, FileText, Loader2, MessageSquareText, Sparkles } from "lucide-react";
 import { ActionItems } from "@/components/action-items";
 import { CopyButton } from "@/components/copy-button";
 import { MeetingTabs, parseTab } from "@/components/meeting-tabs";
 import { PageHeader } from "@/components/page-header";
 import { ProcessingPoller } from "@/components/processing-poller";
 import { ScratchpadEditor } from "@/components/scratchpad-editor";
+import { ShareButton } from "@/components/share-button";
+import { SummaryBody } from "@/components/summary-body";
 import { SummaryControls } from "@/components/summary-controls";
-import { Timestamp } from "@/components/timestamp";
 import { TranscriptView } from "@/components/transcript-view";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -18,7 +19,7 @@ import { db, schema } from "@/db";
 import type { ActionItem, Meeting, Summary, TranscriptSegment } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { initials, speakerColor } from "@/lib/speakers";
-import { cn, formatDuration, formatOffset } from "@/lib/utils";
+import { formatDuration, formatOffset } from "@/lib/utils";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -112,11 +113,14 @@ export default async function MeetingPage({ params, searchParams }: Props) {
           </>
         }
         actions={
-          <Button asChild size="sm">
-            <Link href={`/ask?meeting=${meeting.id}`}>
-              <MessageSquareText className="text-accent" /> Ask about this meeting
-            </Link>
-          </Button>
+          <>
+            <Button asChild size="sm">
+              <Link href={`/ask?meeting=${meeting.id}`}>
+                <MessageSquareText className="text-accent" /> Ask about this meeting
+              </Link>
+            </Button>
+            <ShareButton meetingId={meeting.id} initialEnabled={meeting.shareEnabled} initialSlug={meeting.shareSlug} hasSummary={summary !== null} />
+          </>
         }
       />
       <MeetingTabs meetingId={meeting.id} active={tab} counts={{ actions: actionItems.length || undefined }} />
@@ -151,7 +155,7 @@ export default async function MeetingPage({ params, searchParams }: Props) {
           )
         ) : tab === "transcript" ? (
           <TranscriptView
-            meetingId={meeting.id}
+            linkBase={`/meetings/${meeting.id}?tab=transcript&t=`}
             speakers={speakers}
             estimated={meeting.timestampsEstimated}
             targetIdx={targetSegment(segments, targetMs)}
@@ -191,37 +195,14 @@ function SummaryTab({ meeting, summary, processing, hasTranscript }: { meeting: 
       </EmptyState>
     );
   }
-  const { overview, sections } = summary.content;
   return (
     <article className="mx-auto max-w-3xl px-5 py-6">
-      <p className="text-base leading-relaxed text-ink-2">{overview}</p>
-      {sections.filter((s) => s.bullets.length > 0).map((section) => (
-        <section key={section.key} className="mt-7">
-          <h2 className="text-2xs font-semibold uppercase tracking-wider text-ink-3">{section.title}</h2>
-          <ul className="mt-2 space-y-2.5">
-            {section.bullets.map((b, i) => (
-              <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-ink">
-                <span className={cn("mt-2 size-1 shrink-0 rounded-full", b.from_notes ? "bg-note" : "bg-ink-4")} aria-hidden />
-                <span>
-                  {b.text}{" "}
-                  <span className="ml-0.5 inline-flex flex-wrap gap-1 align-middle">
-                    {b.from_notes && (
-                      <Link
-                        href={`/meetings/${meeting.id}?tab=scratchpad`}
-                        title="This point comes from your Scratchpad notes"
-                        className="inline-flex h-4.5 items-center gap-1 rounded-sm bg-note-soft px-1 text-2xs font-medium text-note transition-colors hover:bg-note/15"
-                      >
-                        <NotebookPen className="size-2.5" /> From your notes
-                      </Link>
-                    )}
-                    {b.source_ms.map((ms) => <Timestamp key={ms} meetingId={meeting.id} ms={ms} estimated={meeting.timestampsEstimated} />)}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      <SummaryBody
+        content={summary.content}
+        estimated={meeting.timestampsEstimated}
+        momentHref={(ms) => `/meetings/${meeting.id}?tab=transcript&t=${ms}`}
+        notesHref={`/meetings/${meeting.id}?tab=scratchpad`}
+      />
       <p className="mt-8 flex items-center gap-1.5 border-t border-line pt-3 text-2xs text-ink-4" title={`Generated by ${summary.model}`}>
         <Sparkles className="size-3" /> Every point links to the moment it was said. Generated by <span className="font-mono">{summary.model}</span>
         {summary.notesVersionUsed > 0 ? ", using your notes." : "."}

@@ -100,7 +100,7 @@ export function ActionItems({ meetingId, initial, people, estimated }: { meeting
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-3">
                 <AssigneeMenu value={item.assigneeName} people={people} onChange={(assigneeName) => change(item.id, { assigneeName })} />
                 {item.dueDate && <span className="tabular">Due {dueFmt.format(new Date(`${item.dueDate}T00:00:00Z`))}</span>}
-                {item.sourceMs !== null && <Timestamp meetingId={meetingId} ms={item.sourceMs} estimated={estimated} />}
+                {item.sourceMs !== null && <Timestamp href={`/meetings/${meetingId}?tab=transcript&t=${item.sourceMs}`} ms={item.sourceMs} estimated={estimated} />}
                 {item.origin === "ai" ? (
                   <span className="flex items-center gap-1 text-2xs text-ink-4" title="Found by Meetscribe in the transcript"><Sparkles className="size-2.5" /> from the meeting</span>
                 ) : (
