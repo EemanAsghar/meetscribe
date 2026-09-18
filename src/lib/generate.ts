@@ -55,7 +55,9 @@ Not action items: things already done, general wishes, opinions, and topics that
 
 Action item rules:
 - task starts with a verb and is readable without the transcript.
-- assignee must be exactly one of these names, or null: ${participants.map((p) => JSON.stringify(p)).join(", ")}. When someone says "I'll do it", the assignee is that speaker.
+- ${participants.length
+    ? `assignee must be exactly one of these names, or null: ${participants.map((p) => JSON.stringify(p)).join(", ")}. When someone says "I'll do it", the assignee is that speaker.`
+    : `assignee is the person's name exactly as it is spoken in the transcript ("Jordan will book the movers" gives "Jordan"), or null when no name is given. This transcript has no speaker labels, so "I will" has no name: use null.`}
 - due_date only when a deadline was actually stated. The meeting took place on ${meetingDate.toISOString().slice(0, 10)} (${meetingDate.toLocaleDateString("en", { weekday: "long", timeZone: "UTC" })}); resolve "Friday" or "next week" against that date. Otherwise null.
 - source_segments are the [index] numbers of the 1 to 3 lines that say what is to be done and by whom, most informative first. This is only about which lines to cite: point at the line where the task is described, because a reply like "okay" tells a reader nothing. It does not change whether something is an action item. Only use indices that appear in the transcript.
 - Merge duplicates. Order by when they came up. If there are none, return an empty list.${hasNotes ? "\n- The owner's notes in <owner_notes> correct the transcript. If they change an owner, a date or a task, use the corrected version." : ""}`;
@@ -144,7 +146,8 @@ function groundActionItems(raw: z.infer<typeof actionItemOutput>[], segments: Se
     }
     return [{
       text: item.task.trim(),
-      assigneeName: item.assignee ? (byLower.get(item.assignee.toLowerCase()) ?? null) : null,
+      // With known participants the name must be one of them. Audio has no speaker labels, so there a spoken name is kept as is.
+      assigneeName: item.assignee ? (participants.length ? (byLower.get(item.assignee.toLowerCase()) ?? null) : item.assignee.trim().slice(0, 80) || null) : null,
       dueDate: item.due_date && /^\d{4}-\d{2}-\d{2}$/.test(item.due_date) ? item.due_date : null,
       sourceMs,
     }];

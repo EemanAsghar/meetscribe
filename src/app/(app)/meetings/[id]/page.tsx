@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, desc, eq } from "drizzle-orm";
-import { AlertTriangle, FileText, Loader2, MessageSquareText, Sparkles } from "lucide-react";
+import { AlertTriangle, FileText, Loader2, MessageSquareText, Radio, Sparkles } from "lucide-react";
 import { ActionItems } from "@/components/action-items";
 import { CopyButton } from "@/components/copy-button";
 import { MeetingTabs, parseTab } from "@/components/meeting-tabs";
@@ -125,7 +125,19 @@ export default async function MeetingPage({ params, searchParams }: Props) {
       />
       <MeetingTabs meetingId={meeting.id} active={tab} counts={{ actions: actionItems.length || undefined }} />
       <main className="flex-1 overflow-y-auto">
-        {meeting.status === "failed" && (tab === "summary" || tab === "actions") ? (
+        {meeting.status === "scheduled" || meeting.status === "recording" ? (
+          <EmptyState icon={Radio} title={meeting.status === "recording" ? "Meetscribe is recording this meeting" : "This meeting has not started"}>
+            {meeting.status === "recording"
+              ? "The recording indicator at the bottom of the screen stays visible wherever you go. Press Stop there when you are done, and the transcript and summary appear here."
+              : "When it is about to start, Meetscribe asks whether to join and capture audio."}
+          </EmptyState>
+        ) : processing && segments.length === 0 ? (
+          <Generating label="Transcribing the recording…" />
+        ) : meeting.status === "failed" && segments.length === 0 ? (
+          <EmptyState icon={AlertTriangle} title="This recording could not be transcribed">
+            {meeting.error ?? "Something went wrong."} You can still paste a transcript as a new meeting.
+          </EmptyState>
+        ) : meeting.status === "failed" && (tab === "summary" || tab === "actions") ? (
           <>
             <SummaryControls meetingId={meeting.id} templates={templateOptions} activeTemplateId={meeting.activeTemplateId} notesChanged={false} failed />
             <EmptyState icon={AlertTriangle} title="The summary could not be generated">
@@ -159,6 +171,8 @@ export default async function MeetingPage({ params, searchParams }: Props) {
             speakers={speakers}
             estimated={meeting.timestampsEstimated}
             targetIdx={targetSegment(segments, targetMs)}
+            targetMs={targetMs}
+            audioSrc={meeting.audioUrl ? `/api/meetings/${meeting.id}/audio` : undefined}
             segments={segments.map((s) => ({ id: s.id, idx: s.idx, speaker: s.speaker, startMs: s.startMs, text: s.text }))}
           />
         ) : (

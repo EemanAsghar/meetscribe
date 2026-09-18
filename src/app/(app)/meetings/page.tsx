@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { Mic, Plus, Upload, Video } from "lucide-react";
+import { Plus, Upload, Video } from "lucide-react";
 import { MeetingsList, type MeetingRow } from "@/components/meetings-list";
 import { PageHeader } from "@/components/page-header";
+import { StartRecordingButton } from "@/components/recording";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { db, schema } from "@/db";
@@ -52,7 +53,7 @@ export default async function MeetingsPage() {
         actions={
           <>
             <Button asChild size="sm"><Link href="/meetings/new"><Upload /> Upload or paste</Link></Button>
-            <Button asChild variant="primary" size="sm"><Link href="/meetings/new?mode=record"><Mic /> Start instant meeting</Link></Button>
+            <StartRecordingButton />
           </>
         }
       />
@@ -63,7 +64,7 @@ export default async function MeetingsPage() {
             title="No meetings yet"
             action={
               <>
-                <Button asChild variant="primary"><Link href="/meetings/new?mode=record"><Mic /> Start instant meeting</Link></Button>
+                <StartRecordingButton size="md" />
                 <Button asChild><Link href="/meetings/new"><Plus /> Upload or paste</Link></Button>
               </>
             }

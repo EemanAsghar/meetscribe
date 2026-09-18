@@ -5,68 +5,87 @@ import type { SummaryContent } from "@/db/schema";
 import { generateActionItems, generateSummary, type GeneratedActionItem, type GeneratedSummary } from "@/lib/generate";
 import { embed } from "@/lib/llm";
 import { chunkSegments } from "@/lib/transcript/chunk";
-import { UNKNOWN_SPEAKER, parseTranscript } from "@/lib/transcript/parse";
+import { transcribeAudio } from "@/lib/transcribe";
+import { UNKNOWN_SPEAKER, parseTranscript, type ParsedTranscript } from "@/lib/transcript/parse";
 
 export const DEFAULT_TEMPLATE_SLUG = "general";
 const PLACEHOLDER_TITLE = "Untitled meeting";
 
-/** Parses and stores a transcript. Fast (no model calls): the caller can redirect as soon as this returns. */
-export async function createMeetingFromTranscript(input: {
-  ownerId: string;
-  transcript: string;
-  title?: string;
-  startedAt?: Date;
-  source?: "paste" | "upload" | "instant" | "scheduled";
-}) {
-  const parsed = parseTranscript(input.transcript); // throws TranscriptError on unusable input
+type Source = "paste" | "upload" | "instant" | "scheduled";
 
+async function defaultTemplateId() {
   const [template] = await db.select().from(schema.templates).where(eq(schema.templates.slug, DEFAULT_TEMPLATE_SLUG)).limit(1);
+  return template?.id;
+}
+
+/** A meeting with no transcript yet: scheduled, being recorded, or audio waiting for transcription. */
+export async function createMeetingShell(input: { ownerId: string; title?: string; source: Source; status: "scheduled" | "recording" | "processing"; startedAt?: Date; audioUrl?: string; durationMs?: number }) {
   const [meeting] = await db
     .insert(schema.meetings)
     .values({
       ownerId: input.ownerId,
       title: input.title?.trim() || PLACEHOLDER_TITLE,
       startedAt: input.startedAt ?? new Date(),
-      durationMs: parsed.durationMs,
-      source: input.source ?? "paste",
-      status: "processing",
-      timestampsEstimated: parsed.timestampsEstimated,
-      activeTemplateId: template?.id,
+      durationMs: input.durationMs ?? 0,
+      source: input.source,
+      status: input.status,
+      audioUrl: input.audioUrl,
+      activeTemplateId: await defaultTemplateId(),
       shareSlug: randomBytes(9).toString("base64url"),
     })
     .returning();
+  await db.insert(schema.scratchpads).values({ meetingId: meeting.id }).onConflictDoNothing();
+  return meeting;
+}
 
+/** Stores segments, participants and retrieval chunks for a meeting. Shared by pasted text and transcribed audio. */
+export async function storeTranscript(meetingId: string, parsed: ParsedTranscript) {
+  const names = parsed.speakers.filter((s) => s !== UNKNOWN_SPEAKER);
+  const known = names.length ? await db.select().from(schema.users).where(inArray(schema.users.name, names)) : [];
+  if (names.length) {
+    await db.insert(schema.participants).values(names.map((name) => ({ meetingId, name, userId: known.find((u) => u.name === name)?.id }))).onConflictDoNothing();
+  }
+  for (let i = 0; i < parsed.segments.length; i += 500) {
+    await db.insert(schema.transcriptSegments).values(parsed.segments.slice(i, i + 500).map((s) => ({ meetingId, ...s })));
+  }
+  const chunks = chunkSegments(parsed.segments);
+  for (let i = 0; i < chunks.length; i += 200) {
+    await db.insert(schema.transcriptChunks).values(
+      chunks.slice(i, i + 200).map((c) => ({ meetingId, kind: "transcript" as const, segFrom: c.segFrom, segTo: c.segTo, startMs: c.startMs, endMs: c.endMs, speakerLabel: c.speakerLabel, text: c.text })),
+    );
+  }
+  await db.update(schema.meetings).set({ durationMs: parsed.durationMs, timestampsEstimated: parsed.timestampsEstimated }).where(eq(schema.meetings.id, meetingId));
+  return { segments: parsed.segments.length, chunks: chunks.length };
+}
+
+/** Parses and stores a pasted transcript. Fast (no model calls): the caller can redirect as soon as this returns. */
+export async function createMeetingFromTranscript(input: { ownerId: string; transcript: string; title?: string; startedAt?: Date; source?: Source }) {
+  const parsed = parseTranscript(input.transcript); // throws TranscriptError on unusable input
+  const meeting = await createMeetingShell({ ownerId: input.ownerId, title: input.title, startedAt: input.startedAt, source: input.source ?? "paste", status: "processing" });
   try {
-    const names = parsed.speakers.filter((s) => s !== UNKNOWN_SPEAKER);
-    const known = names.length ? await db.select().from(schema.users).where(inArray(schema.users.name, names)) : [];
-    if (names.length) {
-      await db.insert(schema.participants).values(names.map((name) => ({ meetingId: meeting.id, name, userId: known.find((u) => u.name === name)?.id })));
-    }
-    for (let i = 0; i < parsed.segments.length; i += 500) {
-      await db.insert(schema.transcriptSegments).values(parsed.segments.slice(i, i + 500).map((s) => ({ meetingId: meeting.id, ...s })));
-    }
-    const chunks = chunkSegments(parsed.segments);
-    for (let i = 0; i < chunks.length; i += 200) {
-      await db.insert(schema.transcriptChunks).values(
-        chunks.slice(i, i + 200).map((c) => ({
-          meetingId: meeting.id,
-          kind: "transcript" as const,
-          segFrom: c.segFrom,
-          segTo: c.segTo,
-          startMs: c.startMs,
-          endMs: c.endMs,
-          speakerLabel: c.speakerLabel,
-          text: c.text,
-        })),
-      );
-    }
-    await db.insert(schema.scratchpads).values({ meetingId: meeting.id });
-    return { meeting, format: parsed.format, segments: parsed.segments.length, chunks: chunks.length };
+    const stored = await storeTranscript(meeting.id, parsed);
+    return { meeting, format: parsed.format, ...stored };
   } catch (error) {
     // The HTTP driver has no multi-statement transaction, so undo by hand. Children cascade.
     await db.delete(schema.meetings).where(eq(schema.meetings.id, meeting.id));
     throw error;
   }
+}
+
+/** Audio path: Whisper, then the same pipeline as a pasted transcript. Runs after the response has been sent. */
+export async function transcribeAndProcess(meetingId: string, audioUrl: string) {
+  try {
+    const started = Date.now();
+    const parsed = await transcribeAudio(audioUrl);
+    const stored = await storeTranscript(meetingId, parsed);
+    console.log("transcribed", JSON.stringify({ meetingId, ms: Date.now() - started, language: parsed.language, ...stored, durationMs: parsed.durationMs }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("transcription failed", meetingId, message);
+    await db.update(schema.meetings).set({ status: "failed", error: `Transcription: ${message}`.slice(0, 500) }).where(eq(schema.meetings.id, meetingId));
+    return;
+  }
+  await processMeeting(meetingId).catch(() => {});
 }
 
 type Timings = Record<string, number>;
