@@ -19,14 +19,24 @@ const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const EMBEDDING_MODEL = "gemini-embedding-001";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const DEFAULT_GROQ_MODELS = "openai/gpt-oss-120b";
+// Groq limits are per model (8,000 tokens/minute, 200,000 tokens/day). The smaller model is a second daily
+// bucket: good for Ask (plain text), not for summaries (it fails strict JSON and the chain moves on).
+const DEFAULT_GROQ_MODELS = "openai/gpt-oss-120b,openai/gpt-oss-20b";
 /** Groq's free tier counts prompt plus requested completion tokens against 8,000 per minute. */
 const GROQ_TOKENS_PER_MINUTE = 8_000;
 const GROQ_MAX_COMPLETION_TOKENS = 2_000;
+/**
+ * gpt-oss reads shallowly at low reasoning effort (it missed action items on the real fixture). Medium is much
+ * better but its reasoning needs room. So: when prompt plus this larger completion budget still fits the
+ * per-minute cap with margin, use medium; otherwise low. Short meetings get the better reading.
+ */
+const GROQ_MEDIUM_COMPLETION_TOKENS = 2_400;
+const GROQ_MEDIUM_MAX_TOTAL = 6_500;
 /** How long a call will wait for room in the per-minute budget before falling through. Scripts raise it. */
 const GROQ_MAX_WAIT_MS = Number(process.env.GROQ_MAX_WAIT_MS ?? 20_000);
 // Each Flash model has its own 20-a-day bucket, so more siblings means more daily headroom.
-const DEFAULT_GEMINI_FALLBACKS = "gemini-3.6-flash,gemini-3.5-flash,gemini-3.8-flash,gemini-3.7-flash,gemini-3.5-flash-lite";
+// No flash-lite: it garbled an attribution and found no action items on the real fixture, and Groq is better than that.
+const DEFAULT_GEMINI_FALLBACKS = "gemini-3.6-flash,gemini-3.5-flash,gemini-3.8-flash";
 const FIRST_TOKEN_TIMEOUT_MS = 12_000;
 const BREAKER_MS = 3 * 60_000;
 const OPENROUTER_TIMEOUT_MS = 100_000;
@@ -174,6 +184,8 @@ function gemini(model: string): Provider {
 }
 
 function groq(model: string): Provider {
+  const promptTokens = (req: CallRequest) => estimateTokens(req.system) + estimateTokens(req.prompt) + estimateTokens(JSON.stringify(req.jsonSchema ?? ""));
+  const roomForMedium = (req: CallRequest) => req.jsonSchema !== undefined && promptTokens(req) + GROQ_MEDIUM_COMPLETION_TOKENS <= GROQ_MEDIUM_MAX_TOTAL;
   const request = (req: CallRequest, structured: boolean) =>
     postJSON(
       GROQ_URL,
@@ -181,9 +193,9 @@ function groq(model: string): Provider {
       {
         model,
         temperature: 0.2,
-        max_completion_tokens: GROQ_MAX_COMPLETION_TOKENS,
-        // "medium" does not fit: on an 18-minute transcript the reasoning alone used the whole completion budget.
-        ...(model.includes("gpt-oss") ? { reasoning_effort: req.effort } : {}),
+        max_completion_tokens: roomForMedium(req) ? GROQ_MEDIUM_COMPLETION_TOKENS : GROQ_MAX_COMPLETION_TOKENS,
+        // On an 18-minute transcript "medium" does not fit: the reasoning alone used the whole completion budget.
+        ...(model.includes("gpt-oss") ? { reasoning_effort: roomForMedium(req) ? "medium" : req.effort } : {}),
         messages: [
           // Strict response_format enforces the schema, so it is not repeated in the prompt (about 500 tokens saved).
           { role: "system", content: structured ? req.system : (req.systemWithSchema ?? req.system) },
@@ -203,23 +215,29 @@ function groq(model: string): Provider {
       return needed > GROQ_TOKENS_PER_MINUTE ? `needs about ${needed} tokens, over Groq's ${GROQ_TOKENS_PER_MINUTE} per minute` : null;
     },
     async call(req) {
+      // The per-minute token budget is shared by every call, and a meeting makes two at once. Groq says how long
+      // until there is room. Waiting (several times if needed, within GROQ_MAX_WAIT_MS in total) is far cheaper
+      // than spending one of Gemini's 20 daily requests, and one retry proved not to be enough.
       let data;
-      try {
-        data = await request(req, true);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "";
-        // The per-minute token budget is shared by every call. Groq says how long until there is room; when
-        // that is short, waiting once is far cheaper than spending one of Gemini's 20 daily requests.
-        const wait = /^HTTP 429/.test(message) ? /try again in ([\d.]+)(ms|s)\b/.exec(message) : null;
-        const waitMs = wait ? Math.ceil(Number(wait[1]) * (wait[2] === "s" ? 1000 : 1)) : null;
-        if (waitMs !== null && waitMs <= GROQ_MAX_WAIT_MS) {
-          await new Promise((resolve) => setTimeout(resolve, waitMs + 250));
-          data = await request(req, true);
-        } else if (/^HTTP 400/.test(message) && req.jsonSchema) {
-          // Strict schemas are not accepted for every schema shape or model. JSON mode plus our own validation covers it.
-          data = await request(req, false);
-        } else {
-          throw error;
+      let structured = true;
+      let waited = 0;
+      for (;;) {
+        try {
+          data = await request(req, structured);
+          break;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          const wait = /^HTTP 429/.test(message) ? /try again in ([\d.]+)(ms|s)\b/.exec(message) : null;
+          const waitMs = wait ? Math.ceil(Number(wait[1]) * (wait[2] === "s" ? 1000 : 1)) + 500 : null;
+          if (waitMs !== null && waited + waitMs <= GROQ_MAX_WAIT_MS) {
+            waited += waitMs;
+            await new Promise((resolve) => setTimeout(resolve, waitMs));
+          } else if (/^HTTP 400/.test(message) && req.jsonSchema && structured) {
+            // Strict schemas are not accepted for every schema shape or model. JSON mode plus our own validation covers it.
+            structured = false;
+          } else {
+            throw error;
+          }
         }
       }
       const choice = data.choices?.[0];

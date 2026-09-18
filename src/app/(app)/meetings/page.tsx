@@ -42,6 +42,8 @@ export default async function MeetingsPage() {
       overview: summaries.find((s) => s.meetingId === m.id && s.templateId === m.activeTemplateId)?.content.overview ?? null,
       openItems: mine.filter((i) => !i.done).length,
       totalItems: mine.length,
+      error: m.error,
+      hasTranscript: m.durationMs > 0 && m.status !== "recording",
     };
   });
 

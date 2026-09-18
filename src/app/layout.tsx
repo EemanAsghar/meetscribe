@@ -7,7 +7,9 @@ const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" }
 
 export const metadata: Metadata = {
   title: { default: "Meetscribe", template: "%s · Meetscribe" },
-  description: "AI meeting notes you can correct, question and trust.",
+  description: "AI meeting notes you can correct, question and trust. Notes that change the summary, answers cited to the moment they were said, and no silent recording.",
+  metadataBase: new URL("https://meetscribe-three.vercel.app"),
+  openGraph: { title: "Meetscribe", description: "Meeting notes you can correct, question and trust.", type: "website", siteName: "Meetscribe" },
   icons: { icon: "/icon.svg" },
 };
 

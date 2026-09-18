@@ -37,7 +37,13 @@ function summaryRules(sections: TemplateSection[], hasNotes: boolean): string {
 - Use only what is in the transcript${hasNotes ? " and the owner's notes" : ""}. Never add outside knowledge, guesses or advice.
 - Every bullet must list in source_segments the [index] numbers of the lines it is based on. Use 1 to 4 indices, the most specific ones. Only use indices that appear in the transcript.
 - Attribute statements to the person who made them, by name, when it matters who said it. People often introduce themselves by name: use those names.
-- Keep numbers, dates, names and product terms exactly as spoken.
+- Keep numbers, dates, names and product terms exactly as spoken. Speech contains slips: if a figure is garbled or ambiguous ("twelve point twelve fifty"), quote it as spoken and say it is unclear. Never tidy it into a precise number nobody said, and never add arithmetic of your own.
+- Dates: when a speaker gives only a day ("by the twenty second", "Monday the twenty first"), write it the same way ("the 22nd"). Do not add a month the speaker did not say.
+- When a speaker corrects themselves ("over sixty nine, anything over fifty actually"), the correction is the fact. Report only the corrected version.
+- Do not soften or sharpen what was said: "forty would be approved without a fight" is not "would only approve forty".
+- Attribute a statement to the person who said it, not to the person who asked the question.
+- Do not describe where information came from (a slide, a document, an email) unless the speaker says so.
+- State each point once, in the section where it fits best. Do not repeat a point in a second section. Things the group agreed on belong under the decisions section when the template has one, not only under key points.
 - One idea per bullet, one or two sentences, plain language, no filler such as "the team discussed".
 - If a section has nothing real to report, return it with an empty bullets list. Do not pad.
 - Transcripts from speech recognition contain errors and filler. Read through them; do not quote the noise.
@@ -54,10 +60,11 @@ function actionRules(participants: string[], meetingDate: Date, hasNotes: boolea
 Not action items: things already done, general wishes, opinions, and topics that were only discussed.
 
 Action item rules:
-- task starts with a verb and is readable without the transcript.
+- task starts with a verb and is readable without the transcript: say what, not "put it in writing" or "mention the decision" (in writing: what? which decision?).
 - ${participants.length
     ? `assignee must be exactly one of these names, or null: ${participants.map((p) => JSON.stringify(p)).join(", ")}. When someone says "I'll do it", the assignee is that speaker.`
     : `assignee is the person's name exactly as it is spoken in the transcript ("Jordan will book the movers" gives "Jordan"), or null when no name is given. This transcript has no speaker labels, so "I will" has no name: use null.`}
+- A bare day of the month ("by the twenty second") means the next such date on or after the meeting date, not a later month.
 - due_date only when a deadline was actually stated. The meeting took place on ${meetingDate.toISOString().slice(0, 10)} (${meetingDate.toLocaleDateString("en", { weekday: "long", timeZone: "UTC" })}); resolve "Friday" or "next week" against that date. Otherwise null.
 - source_segments are the [index] numbers of the 1 to 3 lines that say what is to be done and by whom, most informative first. This is only about which lines to cite: point at the line where the task is described, because a reply like "okay" tells a reader nothing. It does not change whether something is an action item. Only use indices that appear in the transcript.
 - Merge duplicates. Order by when they came up. If there are none, return an empty list.${hasNotes ? "\n- The owner's notes in <owner_notes> correct the transcript. If they change an owner, a date or a task, use the corrected version." : ""}`;

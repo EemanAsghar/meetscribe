@@ -30,7 +30,7 @@ export function Sidebar({ user, signOut, upcoming }: { user: { name: string; ava
     router.refresh();
   }
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-line bg-sunken/60">
+    <aside className="hidden w-56 shrink-0 flex-col border-r border-line bg-sunken/60 md:flex">
       <div className="flex h-12 items-center px-4">
         <Link href="/meetings" className="rounded-sm">
           <Brand />
@@ -102,5 +102,24 @@ export function Sidebar({ user, signOut, upcoming }: { user: { name: string; ava
         </form>
       </div>
     </aside>
+  );
+}
+
+/** Below the md breakpoint the sidebar is replaced by this bar, so the app stays usable on a phone. */
+export function MobileBar() {
+  const pathname = usePathname();
+  return (
+    <div className="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-sunken/60 px-3 md:hidden">
+      <Link href="/meetings" className="mr-auto"><Brand /></Link>
+      {NAV.map(({ href, label, icon: Icon }) => {
+        const active = pathname === href || pathname.startsWith(href + "/");
+        return (
+          <Link key={href} href={href} aria-label={label} className={cn("flex size-8 items-center justify-center rounded-md text-ink-3 hover:bg-hover", active && "bg-hover text-accent")}>
+            <Icon className="size-4" />
+          </Link>
+        );
+      })}
+      <Link href="/meetings/new" aria-label="New meeting" className="flex size-8 items-center justify-center rounded-md bg-accent text-white"><Plus className="size-4" /></Link>
+    </div>
   );
 }

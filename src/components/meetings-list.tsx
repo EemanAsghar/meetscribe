@@ -19,6 +19,8 @@ export type MeetingRow = {
   overview: string | null;
   openItems: number;
   totalItems: number;
+  error: string | null;
+  hasTranscript: boolean;
 };
 
 const SOURCE = {
@@ -105,7 +107,11 @@ export function MeetingsList({ meetings }: { meetings: MeetingRow[] }) {
 
 function StatusLine({ meeting: m }: { meeting: MeetingRow }) {
   if (m.status === "processing") return <span className="inline-flex items-center gap-1 text-accent"><Loader2 className="size-3 animate-spin" /> Writing the summary…</span>;
-  if (m.status === "failed") return <span className="inline-flex items-center gap-1 text-warn"><AlertTriangle className="size-3" /> The summary could not be generated. Open to try again.</span>;
+  if (m.status === "failed") {
+    // A recording that was cancelled or had no speech is a different thing from a summary that failed to generate.
+    const text = m.hasTranscript ? "The summary could not be generated. Open to try again." : (m.error ?? "Nothing was captured.").replace(/^Transcription: /, "");
+    return <span className="inline-flex items-center gap-1 text-warn"><AlertTriangle className="size-3 shrink-0" /> {text}</span>;
+  }
   if (m.status === "recording") return <span className="inline-flex items-center gap-1 font-medium text-rec"><span className="size-1.5 animate-rec rounded-full bg-rec" /> Meetscribe is recording</span>;
   if (m.overview) return m.overview;
   return <span className="text-ink-4">Transcript saved. No summary yet.</span>;

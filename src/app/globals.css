@@ -80,3 +80,14 @@
 }
 
 @utility tabular { font-variant-numeric: tabular-nums; }
+
+/* Page content settles in rather than popping. Short and small on purpose: this is a work tool. */
+@keyframes settle { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+main > * { animation: settle 180ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+/* Thin, quiet scrollbars to match the density of the UI. */
+* { scrollbar-width: thin; scrollbar-color: var(--color-line-strong) transparent; }
