@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, desc, eq } from "drizzle-orm";
-import { AlertTriangle, CheckSquare, FileText, Loader2, NotebookPen, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckSquare, FileText, Loader2, MessageSquareText, NotebookPen, Sparkles } from "lucide-react";
 import { MeetingTabs, parseTab } from "@/components/meeting-tabs";
 import { PageHeader } from "@/components/page-header";
 import { ProcessingPoller } from "@/components/processing-poller";
@@ -10,6 +10,7 @@ import { ScratchpadEditor } from "@/components/scratchpad-editor";
 import { ScrollIntoView } from "@/components/scroll-into-view";
 import { SummaryControls } from "@/components/summary-controls";
 import { Timestamp } from "@/components/timestamp";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { db, schema } from "@/db";
 import type { ActionItem, Meeting, Summary, TranscriptSegment } from "@/db/schema";
@@ -105,6 +106,13 @@ export default async function MeetingPage({ params, searchParams }: Props) {
               </>
             )}
           </>
+        }
+        actions={
+          <Button asChild size="sm">
+            <Link href={`/ask?meeting=${meeting.id}`}>
+              <MessageSquareText className="text-accent" /> Ask about this meeting
+            </Link>
+          </Button>
         }
       />
       <MeetingTabs meetingId={meeting.id} active={tab} counts={{ actions: actionItems.length || undefined }} />

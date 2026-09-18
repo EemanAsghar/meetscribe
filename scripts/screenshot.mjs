@@ -5,7 +5,7 @@ import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const [url, out, cookie, width = "1440", height = "900"] = process.argv.slice(2);
+const [url, out, cookie, width = "1440", height = "900", wait = "2500"] = process.argv.slice(2);
 const port = 9300 + Math.floor(Math.random() * 500);
 const chrome = spawn("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", [
   "--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), "ms-shot-"))}`,
@@ -28,7 +28,7 @@ try {
   if (cookie) await send("Network.setCookie", { name: "ms_session", value: cookie, domain: u.hostname, path: "/", httpOnly: true, secure: u.protocol === "https:" });
   await send("Page.enable");
   await send("Page.navigate", { url });
-  await sleep(2500);
+  await sleep(Number(wait));
   const { data } = await send("Page.captureScreenshot", { format: "png" });
   writeFileSync(out, Buffer.from(data, "base64"));
   console.log("saved", out);

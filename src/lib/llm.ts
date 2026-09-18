@@ -69,6 +69,7 @@ type CallRequest = {
   jsonSchema?: Record<string, unknown>;
   effort: Effort;
   timeoutMs: number;
+  maxOutputTokens?: number;
 };
 
 function env(name: string): string {
@@ -197,8 +198,8 @@ function groq(model: string): Provider {
 
   return {
     name: model,
-    cannotTake({ system, prompt, jsonSchema }) {
-      const needed = estimateTokens(system) + estimateTokens(prompt) + estimateTokens(JSON.stringify(jsonSchema ?? "")) + GROQ_MAX_COMPLETION_TOKENS;
+    cannotTake({ system, prompt, jsonSchema, maxOutputTokens }) {
+      const needed = estimateTokens(system) + estimateTokens(prompt) + estimateTokens(JSON.stringify(jsonSchema ?? "")) + (maxOutputTokens ?? GROQ_MAX_COMPLETION_TOKENS);
       return needed > GROQ_TOKENS_PER_MINUTE ? `needs about ${needed} tokens, over Groq's ${GROQ_TOKENS_PER_MINUTE} per minute` : null;
     },
     async call(req) {
@@ -370,7 +371,9 @@ export async function generateJSON<T>(opts: {
  * Streams text for Ask Meetscribe (step 4). Falls through to the next provider only if a provider
  * fails before its first token, because a half-streamed answer cannot be restarted invisibly.
  */
-export function streamText(opts: { system: string; prompt: string; effort?: Effort; order?: Order }): AsyncIterable<string> & { model: Promise<string> } {
+export type StreamOptions = { system: string; prompt: string; effort?: Effort; order?: Order; /** Answer length budget. Groq counts it against its per-minute cap up front. */ maxOutputTokens?: number };
+
+export function streamText(opts: StreamOptions): AsyncIterable<string> & { model: Promise<string> } {
   let resolveModel!: (m: string) => void;
   let rejectModel!: (e: unknown) => void;
   const model = new Promise<string>((res, rej) => ((resolveModel = res), (rejectModel = rej)));
@@ -379,7 +382,7 @@ export function streamText(opts: { system: string; prompt: string; effort?: Effo
   async function* run(): AsyncGenerator<string> {
     const errors: string[] = [];
     for (const provider of providers(opts.order ?? "quality")) {
-      const refusal = provider.cannotTake?.({ system: opts.system, prompt: opts.prompt, effort: opts.effort ?? "low", timeoutMs: 60_000 });
+      const refusal = provider.cannotTake?.({ system: opts.system, prompt: opts.prompt, effort: opts.effort ?? "low", timeoutMs: 60_000, maxOutputTokens: opts.maxOutputTokens });
       if (refusal) {
         errors.push(`${provider.name}: skipped, ${refusal}`);
         continue;
@@ -409,14 +412,14 @@ export function streamText(opts: { system: string; prompt: string; effort?: Effo
   return Object.assign(run(), { model });
 }
 
-async function* streamProvider(name: string, opts: { system: string; prompt: string; effort?: Effort }): AsyncGenerator<string> {
+async function* streamProvider(name: string, opts: StreamOptions): AsyncGenerator<string> {
   if (geminiModels().includes(name)) {
     yield* geminiStream(name, geminiBody(opts.system, opts.prompt, opts.effort ?? "low"), 60_000);
     return;
   }
   // Groq and OpenRouter both speak the OpenAI streaming format.
   const onGroq = groqModels().includes(name);
-  const res = await fetch(onGroq ? GROQ_URL : OPENROUTER_URL, {
+  const open = () => fetch(onGroq ? GROQ_URL : OPENROUTER_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -428,11 +431,20 @@ async function* streamProvider(name: string, opts: { system: string; prompt: str
       stream: true,
       temperature: 0.2,
       ...(onGroq ? {} : { reasoning: { effort: "low" } }),
-      ...(onGroq ? { max_completion_tokens: GROQ_MAX_COMPLETION_TOKENS, ...(name.includes("gpt-oss") ? { reasoning_effort: opts.effort ?? "low" } : {}) } : {}),
+      ...(onGroq ? { max_completion_tokens: opts.maxOutputTokens ?? GROQ_MAX_COMPLETION_TOKENS, ...(name.includes("gpt-oss") ? { reasoning_effort: opts.effort ?? "low" } : {}) } : {}),
       messages: [{ role: "system", content: opts.system }, { role: "user", content: opts.prompt }],
     }),
     signal: AbortSignal.timeout(60_000),
   });
+  let res = await open();
+  if (res.status === 429 && onGroq) {
+    // Same rule as the JSON path: if Groq says room frees up shortly, wait once instead of falling through.
+    const wait = /try again in ([\d.]+)(ms|s)\b/.exec(await res.text());
+    const waitMs = wait ? Math.ceil(Number(wait[1]) * (wait[2] === "s" ? 1000 : 1)) : null;
+    if (waitMs === null || waitMs > GROQ_MAX_WAIT_MS) throw new Error("HTTP 429: Groq per-minute token budget is used up");
+    await new Promise((resolve) => setTimeout(resolve, waitMs + 250));
+    res = await open();
+  }
   if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
 
   const decoder = new TextDecoder();
