@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/db/seed.ts",
-    "vercel-build": "drizzle-kit migrate && next build"
+    "vercel-build": "drizzle-kit migrate && next build",
+    "test": "vitest run"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
@@ -34,7 +35,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^18.0.0",
@@ -44,6 +45,7 @@
     "pg": "^8.23.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.1"
   }
 }
