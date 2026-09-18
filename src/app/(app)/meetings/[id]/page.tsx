@@ -2,21 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, desc, eq } from "drizzle-orm";
-import { AlertTriangle, CheckSquare, FileText, Loader2, MessageSquareText, NotebookPen, Sparkles } from "lucide-react";
+import { AlertTriangle, FileText, Loader2, MessageSquareText, NotebookPen, Sparkles } from "lucide-react";
+import { ActionItems } from "@/components/action-items";
+import { CopyButton } from "@/components/copy-button";
 import { MeetingTabs, parseTab } from "@/components/meeting-tabs";
 import { PageHeader } from "@/components/page-header";
 import { ProcessingPoller } from "@/components/processing-poller";
 import { ScratchpadEditor } from "@/components/scratchpad-editor";
-import { ScrollIntoView } from "@/components/scroll-into-view";
 import { SummaryControls } from "@/components/summary-controls";
 import { Timestamp } from "@/components/timestamp";
+import { TranscriptView } from "@/components/transcript-view";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { db, schema } from "@/db";
 import type { ActionItem, Meeting, Summary, TranscriptSegment } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { initials, speakerColor } from "@/lib/speakers";
-import { cn, formatDuration } from "@/lib/utils";
+import { cn, formatDuration, formatOffset } from "@/lib/utils";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -39,7 +41,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 const dateFmt = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" });
-const dueFmt = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" });
 
 export default async function MeetingPage({ params, searchParams }: Props) {
   const user = await requireUser();
@@ -82,6 +83,9 @@ export default async function MeetingPage({ params, searchParams }: Props) {
   }));
   const speakers = [...new Set(segments.map((s) => s.speaker))];
   const processing = meeting.status === "processing";
+  // Who an action item can be given to: the people in this meeting first, then the rest of the workspace.
+  const workspace = await db.select({ name: schema.users.name }).from(schema.users);
+  const people = [...new Set([...speakers.filter((n) => n !== "Speaker"), ...workspace.map((u) => u.name)])];
 
   return (
     <>
@@ -126,13 +130,33 @@ export default async function MeetingPage({ params, searchParams }: Props) {
           </>
         ) : tab === "summary" ? (
           <>
-            {summary && <SummaryControls meetingId={meeting.id} templates={templateOptions} activeTemplateId={meeting.activeTemplateId} notesChanged={notesChanged} />}
-            <SummaryTab meeting={meeting} summary={summary} processing={processing} />
+            {!processing && (
+              <SummaryControls meetingId={meeting.id} templates={templateOptions} activeTemplateId={meeting.activeTemplateId} notesChanged={notesChanged} missing={!summary}>
+                {summary && <CopyButton label="Copy as Markdown" text={summaryMarkdown(meeting, summary, actionItems)} />}
+              </SummaryControls>
+            )}
+            <SummaryTab meeting={meeting} summary={summary} processing={processing} hasTranscript={segments.length > 0} />
           </>
         ) : tab === "actions" ? (
-          <ActionsTab meeting={meeting} items={actionItems} processing={processing} />
+          processing && actionItems.length === 0 ? (
+            <Generating label="Looking for commitments people made…" />
+          ) : (
+            <ActionItems
+              key={actionItems.map((a) => a.id).join()}
+              meetingId={meeting.id}
+              people={people}
+              estimated={meeting.timestampsEstimated}
+              initial={actionItems.map((a) => ({ id: a.id, text: a.text, assigneeName: a.assigneeName, dueDate: a.dueDate, done: a.done, sourceMs: a.sourceMs, origin: a.origin }))}
+            />
+          )
         ) : tab === "transcript" ? (
-          <TranscriptTab meeting={meeting} segments={segments} speakers={speakers} targetMs={targetMs} />
+          <TranscriptView
+            meetingId={meeting.id}
+            speakers={speakers}
+            estimated={meeting.timestampsEstimated}
+            targetIdx={targetSegment(segments, targetMs)}
+            segments={segments.map((s) => ({ id: s.id, idx: s.idx, speaker: s.speaker, startMs: s.startMs, text: s.text }))}
+          />
         ) : (
           <ScratchpadEditor key={meeting.id} meetingId={meeting.id} initialContent={pad?.content ?? ""} summaryIsStale={notesChanged} />
         )}
@@ -156,9 +180,16 @@ function Generating({ label }: { label: string }) {
   );
 }
 
-function SummaryTab({ meeting, summary, processing }: { meeting: Meeting; summary: Summary | null; processing: boolean }) {
+function SummaryTab({ meeting, summary, processing, hasTranscript }: { meeting: Meeting; summary: Summary | null; processing: boolean; hasTranscript: boolean }) {
   if (!summary) {
-    return processing ? <Generating label="Reading the transcript and writing the summary…" /> : <EmptyState icon={FileText} title="No summary yet" />;
+    if (processing) return <Generating label="Reading the transcript and writing the summary…" />;
+    return (
+      <EmptyState icon={FileText} title="No summary yet">
+        {hasTranscript
+          ? "The transcript is saved and searchable, and you can already ask questions about it. Pick a template above and generate the summary when you want it."
+          : "This meeting has no transcript yet."}
+      </EmptyState>
+    );
   }
   const { overview, sections } = summary.content;
   return (
@@ -199,60 +230,19 @@ function SummaryTab({ meeting, summary, processing }: { meeting: Meeting; summar
   );
 }
 
-function ActionsTab({ meeting, items, processing }: { meeting: Meeting; items: ActionItem[]; processing: boolean }) {
-  if (items.length === 0) {
-    return processing ? <Generating label="Looking for commitments people made…" /> : (
-      <EmptyState icon={CheckSquare} title="No action items">Nobody committed to anything in this meeting.</EmptyState>
-    );
-  }
-  return (
-    <ul className="mx-auto max-w-3xl divide-y divide-line px-5 py-3">
-      {items.map((item) => (
-        <li key={item.id} className="flex items-start gap-3 py-2.5">
-          <span className={cn("mt-0.5 size-4 shrink-0 rounded-sm border border-line-strong", item.done && "border-accent bg-accent")} aria-hidden />
-          <div className="min-w-0 flex-1">
-            <p className={cn("text-sm text-ink", item.done && "text-ink-4 line-through")}>{item.text}</p>
-            <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-3">
-              <span className={cn("rounded-sm px-1.5 py-px font-medium", item.assigneeName ? "bg-sunken text-ink-2" : "text-ink-4")}>{item.assigneeName ?? "Unassigned"}</span>
-              {item.dueDate && <span className="tabular">Due {dueFmt.format(new Date(`${item.dueDate}T00:00:00Z`))}</span>}
-              {item.sourceMs !== null && <Timestamp meetingId={meeting.id} ms={item.sourceMs} estimated={meeting.timestampsEstimated} />}
-            </p>
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
+/** Offsets are unique per segment, so a citation resolves exactly. A hand-typed t falls back to the last segment at or before it. */
+function targetSegment(segments: TranscriptSegment[], targetMs: number | null): number | null {
+  if (targetMs === null || segments.length === 0) return null;
+  return (segments.find((s) => s.startMs === targetMs) ?? [...segments].reverse().find((s) => s.startMs <= targetMs) ?? segments[0]).idx;
 }
 
-function TranscriptTab({ meeting, segments, speakers, targetMs }: { meeting: Meeting; segments: TranscriptSegment[]; speakers: string[]; targetMs: number | null }) {
-  // Offsets are unique per segment, so a citation resolves exactly. A hand-typed t falls back to the
-  // last segment that starts at or before it.
-  const target =
-    targetMs === null
-      ? null
-      : (segments.find((s) => s.startMs === targetMs) ?? [...segments].reverse().find((s) => s.startMs <= targetMs) ?? segments[0] ?? null);
-  return (
-    <div className="mx-auto max-w-3xl px-5 py-4">
-      {target && <ScrollIntoView targetId={`seg-${target.idx}`} />}
-      {meeting.timestampsEstimated && (
-        <p className="mb-3 rounded-md border border-line bg-sunken px-3 py-2 text-xs text-ink-3">
-          This transcript had no timestamps. Times marked ~ are estimated from word count at 150 words per minute.
-        </p>
-      )}
-      <ol>
-        {segments.map((s, i) => {
-          const sameSpeaker = i > 0 && segments[i - 1].speaker === s.speaker;
-          return (
-            <li key={s.id} id={`seg-${s.idx}`} className={cn("-mx-2 flex gap-3 rounded-md px-2 py-1 transition-colors", !sameSpeaker && i > 0 && "mt-2", target?.idx === s.idx && "bg-accent-soft ring-1 ring-accent-line")}>
-              <Timestamp meetingId={meeting.id} ms={s.startMs} estimated={meeting.timestampsEstimated} className="mt-0.5 w-12 shrink-0 justify-end bg-transparent text-ink-4 hover:bg-hover" />
-              <div className="min-w-0 flex-1">
-                {!sameSpeaker && <p className="text-xs font-semibold" style={{ color: speakerColor(s.speaker, speakers) }}>{s.speaker}</p>}
-                <p className="text-sm leading-relaxed text-ink">{s.text}</p>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
+/** What "Copy as Markdown" puts on the clipboard: paste-ready for a doc, an email or a ticket. */
+function summaryMarkdown(meeting: Meeting, summary: Summary, items: ActionItem[]): string {
+  const lines = [`# ${meeting.title}`, `${dateFmt.format(meeting.startedAt)} · ${formatDuration(meeting.durationMs)}`, "", summary.content.overview, ""];
+  for (const section of summary.content.sections) {
+    if (section.bullets.length === 0) continue;
+    lines.push(`## ${section.title}`, ...section.bullets.map((b) => `- ${b.text}${b.source_ms.length ? ` (${b.source_ms.map(formatOffset).join(", ")})` : ""}`), "");
+  }
+  if (items.length) lines.push("## Action items", ...items.map((i) => `- [${i.done ? "x" : " "}] ${i.text}${i.assigneeName ? ` — ${i.assigneeName}` : ""}${i.dueDate ? ` (due ${i.dueDate})` : ""}`), "");
+  return lines.join("\n").trim() + "\n";
 }

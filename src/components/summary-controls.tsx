@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
-import { AlertTriangle, Check, ChevronDown, LayoutTemplate, Loader2, NotebookPen, RefreshCw } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, LayoutTemplate, Loader2, NotebookPen, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -19,12 +19,17 @@ export function SummaryControls({
   activeTemplateId,
   notesChanged,
   failed,
+  missing,
+  children,
 }: {
   meetingId: string;
   templates: TemplateOption[];
   activeTemplateId: string | null;
   notesChanged: boolean;
   failed?: boolean;
+  /** The meeting has a transcript but no summary yet: offer to generate one. */
+  missing?: boolean;
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -94,6 +99,12 @@ export function SummaryControls({
             <RefreshCw /> Try again
           </Button>
         )}
+        {missing && !working && active && (
+          <Button size="sm" variant="primary" onClick={() => run(active.id, "Reading the transcript and writing the summary…", true)}>
+            <Sparkles /> Generate summary
+          </Button>
+        )}
+        {children && <div className="ml-auto flex items-center gap-1">{children}</div>}
       </div>
 
       {notesChanged && !failed && active && (
