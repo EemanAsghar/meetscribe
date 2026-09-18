@@ -2,3 +2,8 @@
 .claude/capture-state/
 .claude/settings.local.json
 .DS_Store
+
+# secrets
+.env
+.env.local
+.env*.local

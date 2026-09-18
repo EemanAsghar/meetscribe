@@ -1,0 +1,218 @@
+# Meetscribe — build spec
+
+Status: **LOCKED 2026-09-18.** Changes after this point are recorded in a changelog section at the bottom, not edited in silently.
+
+A rebuild of Fathom.video (AI meeting notetaker) in a ~22 hour window, including deployment and the walkthrough video. The goal is not a free-tier clone. Three things must be visibly better than paid Fathom:
+
+1. **Scratchpad notes feed the summary.** In Fathom, a correction typed in the Scratchpad did not reach the regenerated summary. Here it does, and the affected bullets are marked.
+2. **No silent recording.** Fathom shows a branded pre-meeting popup for calendar meetings but joins instant meetings with no visible branding. Here every capture, scheduled or instant, shows the same persistent "Meetscribe is recording" indicator.
+3. **Ask Meetscribe is better grounded.** Inline citations with quote previews and jump-to-timestamp links, synthesis across meetings, and a refusal when the meetings do not contain the answer.
+
+## 1. Scope
+
+### Built for real
+
+| Feature | Notes |
+|---|---|
+| Transcript ingestion | Paste or upload text, upload audio, or record in the browser. All three end in the same `transcript_segments` rows. |
+| LLM summary | Generated from the transcript by a real model call. Structured JSON, not canned text. |
+| Template switching | Four templates. Switching regenerates from the same transcript with a different structure. Results are cached per template. |
+| Scratchpad → summary | Notes are an input to regeneration. Notes win over the transcript when they conflict. |
+| Action items | Extracted by LLM as person + task + source timestamp. Assignable, checkable, manually addable. |
+| Meeting detail page | Tabs: Summary, Action Items, Transcript, Scratchpad. Audio player synced to the transcript when audio exists. |
+| Ask Meetscribe | RAG over all stored meetings. Section 5. |
+| Public share page | `/s/:slug`, no session needed, reads the same summary row as the app. |
+| Meetings list | Seeded with 6 to 8 interrelated meetings, generated through the real pipeline. |
+| Recording indicator | Real `MediaRecorder` mic capture with a persistent global indicator. Section 6. |
+| Demo auth | One-click "Continue as demo user" cookie session. App routes protected, share pages public. |
+
+### Stubbed, and stated as such in the walkthrough
+
+- **The meeting bot.** Nothing joins Zoom, Meet or Teams. Upload, paste and in-browser recording stand in for it, and everything downstream treats the result as a captured call.
+- **Calendar integration.** The "scheduled meeting" with its pre-meeting popup is a seeded row, not a calendar sync.
+- **Speaker labels on audio.** Whisper does not diarize. Audio-sourced transcripts show a single "Speaker" label. Pasted transcripts keep their speaker names.
+- **Multi-user.** One demo user. Teammates exist as seeded rows for assignees and speakers.
+
+### Stretch, only after step 9
+
+- Highlights (mark a moment, timestamp-linked).
+- Live partial summary during recording.
+
+## 2. Providers (free tier only)
+
+| Job | Primary | Fallback |
+|---|---|---|
+| Summaries, action items, Ask answers | Google Gemini, current Flash model | OpenRouter `deepseek/deepseek-v4-flash-0731:free`, then `nvidia/nemotron-3-super-120b-a12b:free` |
+| Embeddings | Gemini `gemini-embedding-001`, 768 dimensions | None. Ask degrades to full-text search only. |
+| Audio transcription | Groq `whisper-large-v3-turbo` | None. Upload fails with a clear error and paste remains available. |
+
+Facts checked on 2026-09-18, and their limits:
+
+- Neither Google nor Groq publishes exact free-tier numbers in their docs any more. Both defer to the account dashboard. **Step 0 includes reading the real limits off both dashboards and recording them here.**
+- Groq's docs list Whisper at 20 requests per minute and 7,200 audio seconds per hour, which is ample. Groq chat models are capped near 8K tokens per minute, which a single long transcript exceeds. That is why Groq is not the summarizer.
+- Groq Whisper rejects files over 25 MB. The upload UI enforces this.
+- The OpenRouter models were chosen from the live model list for long context (1M and 262K) and structured-output support. **Their output quality is untested by me.** Step 2 runs one real summary through the fallback to confirm it returns valid JSON. If it does not, it is swapped before moving on.
+- OpenRouter's free tier has a low daily request cap. It is a safety net for a Gemini outage or daily cap during the demo, not a second engine.
+- Gemini's free tier may use prompts for training. All seed data is fictional.
+
+The Gemini model id is an env var, not a constant, because I have not verified the current Flash model name. Step 0 lists models with the real key and sets it.
+
+### `lib/llm.ts` contract
+
+```ts
+generateJSON<T>(opts: { system: string; prompt: string; schema: ZodSchema<T> }): Promise<{ data: T; model: string }>
+streamText(opts: { system: string; prompt: string }): AsyncIterable<string> & { model: Promise<string> }
+embed(texts: string[]): Promise<number[][]>
+```
+
+- Provider order: Gemini, then each OpenRouter model in `OPENROUTER_MODELS`.
+- Fall through on HTTP 429, 5xx, timeout, or output that fails schema validation after one repair retry.
+- Every result carries the model that produced it. `summaries.model` stores it and the UI shows it in a tooltip, so a fallback is visible, not silent.
+- `embed` has no fallback. On failure the caller gets a typed error and Ask switches to full-text retrieval.
+
+## 3. Stack
+
+- **App:** Next.js (App Router), TypeScript, deployed on Vercel. Route handlers for the API. LLM responses stream.
+- **UI:** Tailwind, shadcn/ui, `cmdk` for the ⌘K Ask palette, Framer Motion used sparingly.
+- **Database:** Neon Postgres with the `vector` extension. Drizzle ORM and drizzle-kit migrations.
+- **Audio storage:** Vercel Blob, uploaded directly from the browser with a client token. Vercel caps request bodies near 4.5 MB, so audio never passes through a route handler on upload. The server fetches the blob and forwards it to Groq.
+- **Validation:** Zod schemas shared between the LLM contract and the API.
+
+### Environment variables
+
+| Name | Used by |
+|---|---|
+| `DATABASE_URL` | Drizzle config and runtime. Neon **pooled** connection string. |
+| `GEMINI_API_KEY` | `llm.ts` |
+| `GEMINI_MODEL` | `llm.ts`. Set in step 0. |
+| `GROQ_API_KEY` | Transcription |
+| `OPENROUTER_API_KEY` | `llm.ts` fallback |
+| `OPENROUTER_MODELS` | Comma-separated fallback order. Default is the two models above. |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob. Created by Vercel when the store is attached. |
+| `SESSION_SECRET` | Signs the demo session cookie. |
+
+`.env.local` is gitignored. `.env.example` is committed with names only.
+
+### Design direction
+
+Light, dense, Linear-like. One accent: deep teal (`#0F766E` family), explicitly not Fathom's purple. Red is reserved for the recording state and nothing else. Inter for UI, a mono face for timestamps. Design tokens and the app shell are set in step 1 so nothing is built unstyled and redone.
+
+## 4. Data model
+
+All ids are UUIDs. All times are `timestamptz`. Offsets into a meeting are integer milliseconds.
+
+**`users`**: `id`, `name`, `email`, `avatar_color`, `is_demo`.
+
+**`meetings`**: `id`, `owner_id`, `title`, `started_at`, `duration_ms`, `source` (`scheduled` | `instant` | `upload` | `paste`), `status` (`scheduled` | `recording` | `processing` | `ready` | `failed`), `error`, `audio_url`, `timestamps_estimated` (bool), `active_template_id`, `share_slug` (unique), `share_enabled`, `created_at`.
+
+**`participants`**: `meeting_id`, `name`, `user_id` (nullable).
+
+**`transcript_segments`**: `id`, `meeting_id`, `idx`, `speaker`, `start_ms`, `end_ms`, `text`. The source of truth every timestamp link resolves to.
+
+**`transcript_chunks`**: `id`, `meeting_id`, `kind` (`transcript` | `note`), `seg_from`, `seg_to`, `start_ms`, `end_ms`, `speaker_label`, `text`, `embedding vector(768)`, `tsv tsvector`. About 150 to 250 words per chunk, split on speaker turns. HNSW index on `embedding`, GIN index on `tsv`. Scratchpad notes are chunked here too so Ask can cite them.
+
+**`templates`**: `id`, `slug`, `name`, `description`, `sections` (JSON: ordered list of `{key, title, instruction}`). Seeded: General, Enhanced, Sales Discovery, Standup.
+
+**`summaries`**: `id`, `meeting_id`, `template_id`, `content` (JSON), `notes_version_used`, `model`, `is_current`, `created_at`. One current row per (meeting, template). Old versions are kept.
+
+```jsonc
+// summaries.content
+{
+  "overview": "string",
+  "sections": [
+    { "key": "decisions", "title": "Decisions",
+      "bullets": [ { "text": "string", "source_ms": [754000], "from_notes": false } ] }
+  ]
+}
+```
+
+Bullets carry `source_ms` so they link into the transcript, and `from_notes` so the UI can badge what came from the Scratchpad.
+
+**`scratchpads`**: `meeting_id` (PK), `content`, `version` (incremented on save), `updated_at`. When `version > summaries.notes_version_used` the Summary tab shows "Notes changed since this summary" with a Regenerate button.
+
+**`action_items`**: `id`, `meeting_id`, `text`, `assignee_name`, `assignee_user_id` (nullable), `due_date` (nullable), `done`, `source_ms` (nullable), `origin` (`ai` | `manual`), `created_at`. Regeneration replaces `ai` rows that are not done and never touches `manual` rows or completed ones.
+
+**`ask_threads`**: `id`, `owner_id`, `scope` (JSON: `{meeting_ids?, person?, from?, to?}`), `created_at`.
+
+**`ask_messages`**: `id`, `thread_id`, `role`, `content`, `citations` (JSON: `[{n, meeting_id, chunk_id, start_ms, speaker, quote}]`), `model`, `created_at`.
+
+**`highlights`** (stretch): `id`, `meeting_id`, `start_ms`, `label`.
+
+### Rules that matter
+
+- **One summary, two views.** The share page and the app both read the `is_current` summary for the meeting's `active_template_id`. There is no copy, so they cannot drift.
+- **Notes beat the transcript.** The summary prompt receives the notes in a separate block with the instruction that they are the owner's corrections and take precedence. Any bullet changed or added because of them is returned with `from_notes: true`.
+- **Estimated timestamps are labelled.** A pasted transcript with no timestamps gets offsets synthesized from word count at 150 words per minute, `timestamps_estimated = true`, and the UI prefixes them with "~".
+
+## 5. Ask Meetscribe
+
+Pipeline for one question:
+
+1. **Scope.** All meetings by default. Can be narrowed to the current meeting, a person, or a date range.
+2. **Retrieve.** Embed the question. Take the top 20 by vector distance and the top 20 by `ts_rank` full-text match. Fuse with reciprocal rank fusion. Keep the top 8 to 10, capped at 4 per meeting so one long call cannot crowd out the others.
+3. **Answer.** Stream a response from the numbered sources. The prompt requires a `[n]` marker on every factual sentence and an explicit "not in your meetings" reply when the sources do not contain the answer.
+4. **Validate.** Server-side, strip any `[n]` that does not map to a retrieved chunk. If retrieval returned nothing above the relevance floor, skip the LLM call and return the not-found reply.
+5. **Render.** Each `[n]` becomes a chip showing meeting title, speaker and timestamp. Hover shows the quoted source text. Click opens `/meetings/:id?t=<ms>`, which scrolls to the segment, highlights it, and seeks the audio if present. Below the answer, a "Sources" row groups citations by meeting.
+
+Where this exceeds what was observed in Fathom: hybrid retrieval (names and numbers are where pure embeddings miss), quote-on-hover so a citation can be checked without leaving the answer, notes as citable sources, a per-meeting cap that forces real cross-meeting synthesis, and validated citations.
+
+Seed data is designed to prove it: one fictional company, 6 to 8 meetings, with a launch date and a pricing decision that change across three of them. "How did the launch date change, and why?" has a real multi-meeting answer.
+
+Degraded mode: if embeddings fail, retrieval runs on full-text only and the UI shows a small "keyword search only" note.
+
+## 6. Recording indicator
+
+- **Instant:** "Start instant meeting" asks for mic permission, creates a `meetings` row with `status = recording`, and starts `MediaRecorder`.
+- **Scheduled:** a seeded upcoming meeting shows a branded pre-meeting popup ("Starting in 2m", "Join & capture audio"). Accepting it enters the same recording state.
+- **Indicator:** while any meeting is `recording`, a fixed pill is visible on every route: Meetscribe mark, pulsing red dot, "Meetscribe is recording", elapsed time, Stop. The tab title is prefixed with "● REC" and the favicon swaps to a red-dot variant, so the state is visible when the tab is in the background. It lives in the root layout, so navigating does not interrupt capture.
+- **Stop:** upload to Blob, `status = processing`, Whisper, then the same pipeline as any other ingest.
+- **Guards:** `beforeunload` warning while recording. If the recording approaches 25 MB the UI warns, then stops and processes what it has.
+
+## 7. Routes
+
+Pages: `/login`, `/meetings`, `/meetings/new`, `/meetings/:id` (tab and `t` in the query string), `/ask`, `/s/:slug` (public).
+
+API: `POST /api/meetings` (paste or audio), `POST /api/meetings/:id/summary` (body: `templateId`, regenerates), `PUT /api/meetings/:id/scratchpad`, `GET|POST|PATCH /api/meetings/:id/action-items`, `POST /api/meetings/:id/share`, `POST /api/ask` (streams), `POST /api/blob/token`, `POST /api/session`.
+
+Middleware protects everything except `/login`, `/s/*` and `/api/session`.
+
+## 8. Transcript parsing
+
+Accepted: `Speaker: text`, `[00:03] Speaker: text` (also `[00:03:12]`), Fathom-style `0:03 - Name` followed by text lines, `.vtt`, `.srt`. Detection is by pattern in that order of specificity. Anything unmatched falls through to plain text: paragraphs become segments, speaker is "Speaker", timestamps are estimated per section 4. The parser is a pure function with unit tests against a fixture per format. It is the one place tests are written before the code.
+
+## 9. Build order and budget
+
+| # | Hours | Work | Done when |
+|---|---|---|---|
+| 0 | 0.5 | Lock spec. Keys for Gemini, Groq, OpenRouter. Neon project. Read real rate limits off dashboards. Set `GEMINI_MODEL`. | This file is committed as locked with limits filled in |
+| 1 | 1.5 | Scaffold, Drizzle schema, design tokens, app shell, **deploy skeleton to Vercel** | A public URL renders a page that reads from Neon |
+| 2 | 3.0 | Parser, paste ingest, `llm.ts` with fallback, summary and action item generation | A pasted transcript produces a real structured summary. Fallback model verified once. |
+| 3 | 1.5 | Template switching, scratchpad feeding regeneration, stale-notes banner | A note correction visibly changes the summary and is badged |
+| 4 | 4.0 | Chunking, embeddings, hybrid retrieval, streamed cited answers, citation validation, jump-to-timestamp | A cross-meeting question returns an answer whose every citation opens the right moment |
+| 5 | 2.0 | Meeting detail page: four tabs, transcript seek and highlight, audio sync, assignable action items | |
+| 6 | 1.0 | Meetings list, share page, demo login, middleware | Share link works in a private window |
+| 7 | 1.5 | Audio upload, Whisper, in-browser recording, global indicator, scheduled-meeting popup | Record 30 seconds, stop, get a summary |
+| 8 | 1.0 | Seed script: 6 to 8 interrelated meetings through the real pipeline | |
+| 9 | 3.0 | Polish: empty, loading and error states, skeletons, motion, responsive, ⌘K | |
+| 10 | 2.0 | README, walkthrough script, video | |
+| | 1.0 | Buffer | |
+
+Checkpoints:
+
+- **Hour 6:** summaries and scratchpad work on the public URL.
+- **Hour 10.5:** Ask works end to end.
+- **Hour 13:** if more than 1.5 hours behind, cut in-browser recording. Keep audio upload and show the indicator during processing only.
+- Stretch items are not started before step 9 is done.
+
+Working rules: deploy after every step, not at the end. Commit code and `.agent-logs/` together as each step lands. Seed transcripts are written once and committed as fixtures, so re-seeding does not depend on an LLM call succeeding.
+
+## 10. Risks
+
+| Risk | Mitigation |
+|---|---|
+| Gemini daily cap hit during seeding or the demo | OpenRouter fallback. Seed once, early. Summaries cached per template. |
+| Fallback model returns malformed JSON | Schema validation with one repair retry, verified in step 2 |
+| Vercel function timeout on long audio | Whisper turbo is fast. Audio capped at 25 MB. Processing state is polled, not held open. |
+| Neon cold start after idle | Free compute suspends when idle and wakes in about a second. Acceptable. No cron needed, unlike Supabase's week-long pause. |
+| Mic permission denied or unsupported browser | Clear inline error and a link to upload instead |
+| Polish squeezed out | Tokens and shell in step 1. The hour 13 cut exists to protect step 9. |
