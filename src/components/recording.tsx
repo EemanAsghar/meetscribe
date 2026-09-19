@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
-import { AlertTriangle, CalendarClock, Loader2, Mic, Square, X } from "lucide-react";
+import { AlertTriangle, CalendarClock, Loader2, Mic, MonitorUp, Square, X } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { formatOffset } from "@/lib/utils";
@@ -17,7 +17,73 @@ const WARN_BYTES = 20 * 1024 * 1024;
 
 type Phase = "idle" | "starting" | "recording" | "saving";
 type Upcoming = { id: string; title: string; startsAt: string };
-type Ctx = { phase: Phase; start: (opts?: { meetingId?: string; title?: string }) => Promise<void>; error: string | null };
+/** "mic": your microphone. "tab": the audio of another browser tab (a Meet, Zoom or Teams call) mixed with your microphone. */
+export type CaptureMode = "mic" | "tab";
+type StartOptions = { meetingId?: string; title?: string; mode?: CaptureMode };
+type Ctx = { phase: Phase; start: (opts?: StartOptions) => Promise<void>; error: string | null };
+
+class CaptureError extends Error {}
+
+/**
+ * Opens the audio to record and returns one stream plus a cleanup function.
+ *
+ * Tab mode is how Meetscribe hears everyone on a call without a bot: the browser's own screen-share picker lets the
+ * user choose the tab the call is in and tick "Also share tab audio". That audio is mixed with the microphone through
+ * Web Audio, because the tab carries the other participants and the microphone carries the user. Only audio is
+ * recorded; the video track the picker insists on is kept alive (ending it can end the capture) and never stored.
+ */
+async function openCapture(mode: CaptureMode, onEnded: () => void): Promise<{ stream: MediaStream; cleanup: () => void; label: string }> {
+  const media = navigator.mediaDevices;
+  if (!media?.getUserMedia || typeof MediaRecorder === "undefined") throw new CaptureError("This browser cannot record audio. Upload an audio file instead.");
+
+  if (mode === "mic") {
+    let mic: MediaStream;
+    try {
+      mic = await media.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch {
+      throw new CaptureError("Meetscribe needs microphone access to record. Allow it in your browser, or upload an audio file instead.");
+    }
+    return { stream: mic, cleanup: () => mic.getTracks().forEach((t) => t.stop()), label: "microphone" };
+  }
+
+  if (!media.getDisplayMedia) throw new CaptureError("This browser cannot share a tab's audio. Use Chrome or Edge on a computer, or record your microphone instead.");
+  let tab: MediaStream;
+  try {
+    tab = await media.getDisplayMedia({
+      video: { displaySurface: "browser", frameRate: 5 },
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      // Chrome hints: offer tabs first, and do not offer this tab (recording ourselves would be silence).
+      ...({ selfBrowserSurface: "exclude", systemAudio: "include", surfaceSwitching: "exclude" } as object),
+    });
+  } catch {
+    throw new CaptureError("No tab was shared. Click again, pick the tab your meeting is in, and tick “Also share tab audio”.");
+  }
+  if (tab.getAudioTracks().length === 0) {
+    tab.getTracks().forEach((t) => t.stop());
+    throw new CaptureError("That share has no audio. Pick a Chrome tab (not a window or the whole screen) and tick “Also share tab audio” at the bottom of the picker.");
+  }
+
+  // The microphone is optional: without it the call is still captured, just not the user's own voice.
+  const mic = await media.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }).catch(() => null);
+
+  const context = new AudioContext();
+  const mixed = context.createMediaStreamDestination();
+  context.createMediaStreamSource(new MediaStream(tab.getAudioTracks())).connect(mixed);
+  if (mic) context.createMediaStreamSource(mic).connect(mixed);
+
+  // "Stop sharing" in the browser's own bar ends the recording cleanly, exactly like pressing Stop here.
+  tab.getTracks().forEach((t) => t.addEventListener("ended", onEnded, { once: true }));
+
+  return {
+    stream: mixed.stream,
+    label: mic ? "meeting tab + microphone" : "meeting tab",
+    cleanup: () => {
+      tab.getTracks().forEach((t) => t.stop());
+      mic?.getTracks().forEach((t) => t.stop());
+      void context.close();
+    },
+  };
+}
 
 const RecordingContext = createContext<Ctx>({ phase: "idle", start: async () => {}, error: null });
 export const useRecording = () => useContext(RecordingContext);
@@ -41,13 +107,14 @@ export function RecordingProvider({ upcoming, children }: { upcoming: Upcoming[]
   const meetingId = useRef<string | null>(null);
   const startedAt = useRef(0);
   const size = useRef(0);
+  const cleanup = useRef<() => void>(() => {});
 
   const stop = useCallback(() => {
     if (recorder.current?.state === "recording") recorder.current.stop();
   }, []);
 
-  async function finish(mime: string, stream: MediaStream) {
-    stream.getTracks().forEach((t) => t.stop());
+  async function finish(mime: string) {
+    cleanup.current();
     const id = meetingId.current!;
     const durationMs = Date.now() - startedAt.current;
     setPhase("saving");
@@ -72,26 +139,27 @@ export function RecordingProvider({ upcoming, children }: { upcoming: Upcoming[]
     }
   }
 
-  const start = useCallback(async (opts?: { meetingId?: string; title?: string }) => {
+  const start = useCallback(async (opts?: StartOptions) => {
     if (phase !== "idle") return;
     setError(null);
     setPhase("starting");
-    let stream: MediaStream;
+    let capture: Awaited<ReturnType<typeof openCapture>>;
     try {
-      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") throw new Error("unsupported");
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      capture = await openCapture(opts?.mode ?? "mic", () => stop());
     } catch (e) {
       setPhase("idle");
-      setError(e instanceof Error && e.message === "unsupported" ? "This browser cannot record audio. Upload an audio file instead." : "Meetscribe needs microphone access to record. Allow it in your browser, or upload an audio file instead.");
+      setError(e instanceof CaptureError ? e.message : "Could not start recording.");
       return;
     }
+    const stream = capture.stream;
+    cleanup.current = capture.cleanup;
     try {
       // The meeting row exists from the first second, so the capture shows up in the meetings list too.
       const id = opts?.meetingId
         ? (await api(`/api/meetings/${opts.meetingId}/recording`, { action: "start" })).id
         : (await api("/api/meetings", { kind: "record", title: opts?.title })).id;
       meetingId.current = id;
-      setTitle(opts?.title ?? "Instant meeting");
+      setTitle(opts?.title ?? (opts?.mode === "tab" ? `Meeting tab · ${capture.label}` : "Instant meeting"));
 
       const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((m) => MediaRecorder.isTypeSupported(m));
       const rec = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 32_000 });
@@ -104,7 +172,7 @@ export function RecordingProvider({ upcoming, children }: { upcoming: Upcoming[]
         setBytes(size.current);
         if (size.current >= MAX_BYTES - 512 * 1024) rec.stop(); // Whisper's limit: stop and keep what we have
       };
-      rec.onstop = () => void finish(rec.mimeType || mime || "audio/webm", stream);
+      rec.onstop = () => void finish(rec.mimeType || mime || "audio/webm");
       rec.start(5000);
       recorder.current = rec;
       startedAt.current = Date.now();
@@ -113,12 +181,12 @@ export function RecordingProvider({ upcoming, children }: { upcoming: Upcoming[]
       setPhase("recording");
       router.refresh();
     } catch (e) {
-      stream.getTracks().forEach((t) => t.stop());
+      capture.cleanup();
       setPhase("idle");
       setError(e instanceof Error ? e.message : "Could not start recording.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, router]);
+  }, [phase, router, stop]);
 
   // Clock, tab title and favicon: the state stays visible when this tab is in the background.
   useEffect(() => {
@@ -214,11 +282,12 @@ function UpcomingPopup({ upcoming, onJoin }: { upcoming: Upcoming[]; onJoin: (m:
   );
 }
 
-export function StartRecordingButton({ className, size = "sm" }: { className?: string; size?: "sm" | "md" | "lg" }) {
+export function StartRecordingButton({ className, size = "sm", mode = "mic", label, variant }: { className?: string; size?: "sm" | "md" | "lg"; mode?: CaptureMode; label?: string; variant?: "primary" | "secondary" }) {
   const { phase, start } = useRecording();
+  const Icon = mode === "tab" ? MonitorUp : Mic;
   return (
-    <Button variant="primary" size={size} className={className} disabled={phase !== "idle"} onClick={() => start()}>
-      <Mic /> {phase === "idle" ? "Start instant meeting" : "Recording…"}
+    <Button variant={variant ?? (mode === "tab" ? "secondary" : "primary")} size={size} className={className} disabled={phase !== "idle"} onClick={() => start({ mode })}>
+      <Icon /> {phase === "idle" ? (label ?? (mode === "tab" ? "Record a meeting tab" : "Start instant meeting")) : "Recording…"}
     </Button>
   );
 }

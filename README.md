@@ -23,7 +23,7 @@ The demo workspace holds seven linked meetings of a fictional company (Northwind
 4. On any summary, switch the **template** (General, Enhanced, Sales Discovery, Standup). Templates already generated switch instantly.
 5. **Action items**: tick, reassign, edit, add your own. Yours are never touched by regeneration.
 6. **Share** a meeting, open the link in a private window. Same summary, no Scratchpad, no way into the app. "Reset link" kills the old URL.
-7. **New meeting → Record now**, say a few sentences, press Stop in the indicator. Or upload audio, or paste a transcript in any of five formats.
+7. **New meeting → Record now**. Either share the tab a Google Meet is in (tick "Also share tab audio") to capture the whole call, or record your microphone. Press Stop in the indicator. Or upload audio, or paste a transcript in any of five formats.
 8. Sidebar → **"Simulate a calendar meeting in 2 min"** to see the pre-meeting prompt.
 
 ## What is real and what is stubbed
@@ -31,7 +31,7 @@ The demo workspace holds seven linked meetings of a fictional company (Northwind
 **Real:** transcript parsing (five formats plus a plain-text fallback), LLM summaries and action items, template switching, notes feeding regeneration, hybrid retrieval and cited answers, line-level citation resolution, audio upload, Whisper transcription, in-browser recording, sharing, persistence. Nothing in the UI is canned.
 
 **Stubbed, on purpose:**
-- **The meeting bot.** Nothing joins Zoom, Meet or Teams. Upload, paste and in-browser recording stand in for it; everything downstream treats the result as a captured call.
+- **The meeting bot.** Nothing joins Zoom, Meet or Teams on its own. The closest real thing is **Record a meeting tab**: you join the call in a browser tab, share that tab's audio with Meetscribe, and it records everyone on the call mixed with your microphone (Chrome or Edge on a computer). Upload and paste cover everything else. Everything downstream treats the result as a captured call.
 - **Calendar sync.** "Simulate a calendar meeting" creates the scheduled meeting a calendar would.
 - **Speaker names on audio.** Whisper does not tell voices apart, so recordings show one "Speaker". Pasted transcripts keep their speakers. The UI says this where it matters.
 

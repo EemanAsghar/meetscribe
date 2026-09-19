@@ -72,7 +72,7 @@ export async function transcribeAudio(audioUrl: string): Promise<ParsedTranscrip
   const words = segments.reduce((n, seg) => n + countWords(seg.text), 0);
   const seconds = data.duration ?? (segments.length ? segments[segments.length - 1].endMs / 1000 : 0);
   if (segments.length === 0 || (words <= SILENCE_MAX_WORDS && seconds >= SILENCE_MIN_SECONDS)) {
-    throw new Error("No speech was found in this recording. Check that the right microphone was selected.");
+    throw new Error("No speech was found in this recording. Check the microphone, or if you recorded a meeting tab, that “Also share tab audio” was ticked.");
   }
 
   const last = segments[segments.length - 1];
