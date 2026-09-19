@@ -14,7 +14,13 @@ type Exchange = { id: number; question: string; text: string; sources: Source[];
 
 const dateFmt = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" });
 
-export function AskChat({ suggestions, scopeMeeting, initialQuestion }: { suggestions: string[]; scopeMeeting: { id: string; title: string } | null; initialQuestion?: string }) {
+export function AskChat({ suggestions, scopeMeeting, initialQuestion, compact }: {
+  suggestions: string[];
+  scopeMeeting: { id: string; title: string } | null;
+  initialQuestion?: string;
+  /** Docked beside a meeting: tighter spacing, no hero, same behaviour. */
+  compact?: boolean;
+}) {
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [input, setInput] = useState("");
   const [scope, setScope] = useState(scopeMeeting);
@@ -82,17 +88,19 @@ export function AskChat({ suggestions, scopeMeeting, initialQuestion }: { sugges
     <Tooltip.Provider delayDuration={120}>
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl px-5 py-6">
+          <div className={cn("mx-auto max-w-3xl", compact ? "px-4 py-4" : "px-5 py-6")}>
             {exchanges.length === 0 ? (
-              <div className="pt-10 text-center">
-                <div className="mx-auto mb-4 flex size-10 items-center justify-center rounded-lg bg-accent-soft text-accent">
-                  <MessageSquareText className="size-5" strokeWidth={1.75} />
-                </div>
-                <h2 className="text-lg font-semibold text-ink">{scope ? "Ask about this meeting" : "Ask across every meeting"}</h2>
-                <p className="mx-auto mt-1 max-w-md text-sm text-ink-3">
+              <div className={cn("text-center", compact ? "pt-2" : "pt-10")}>
+                {!compact && (
+                  <div className="mx-auto mb-4 flex size-10 items-center justify-center rounded-lg bg-accent-soft text-accent">
+                    <MessageSquareText className="size-5" strokeWidth={1.75} />
+                  </div>
+                )}
+                {!compact && <h2 className="text-lg font-semibold text-ink">{scope ? "Ask about this meeting" : "Ask across every meeting"}</h2>}
+                <p className={cn("mx-auto max-w-md text-ink-3", compact ? "text-xs" : "mt-1 text-sm")}>
                   Every claim in the answer links to the moment it was said. If your meetings don&apos;t contain the answer, Meetscribe says so.
                 </p>
-                <div className="mx-auto mt-6 flex max-w-xl flex-col gap-1.5">
+                <div className={cn("mx-auto flex max-w-xl flex-col gap-1.5", compact ? "mt-3" : "mt-6")}>
                   {suggestions.map((s) => (
                     <button key={s} type="button" onClick={() => ask(s)} className="flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 text-left text-sm text-ink-2 shadow-xs transition-colors hover:border-accent-line hover:bg-accent-soft/40 hover:text-ink">
                       <CornerDownRight className="size-3.5 shrink-0 text-ink-4" /> {s}
@@ -110,7 +118,7 @@ export function AskChat({ suggestions, scopeMeeting, initialQuestion }: { sugges
         </div>
 
         <div className="shrink-0 border-t border-line bg-surface">
-          <form onSubmit={(ev) => { ev.preventDefault(); ask(input); }} className="mx-auto max-w-3xl px-5 py-3">
+          <form onSubmit={(ev) => { ev.preventDefault(); ask(input); }} className={cn("mx-auto max-w-3xl py-3", compact ? "px-3" : "px-5")}>
             <div className="flex items-end gap-2 rounded-lg border border-line-strong bg-surface p-1.5 shadow-xs focus-within:border-accent">
               <textarea
                 value={input}
@@ -134,7 +142,7 @@ export function AskChat({ suggestions, scopeMeeting, initialQuestion }: { sugges
                   <button type="button" onClick={() => { setScope(null); threadId.current = null; }} aria-label="Search all meetings instead" className="rounded-sm hover:bg-accent-line"><X className="size-3" /></button>
                 </span>
               ) : (
-                <span>Searching all your meetings and notes</span>
+                <span>{compact ? "All meetings" : "Searching all your meetings and notes"}</span>
               )}
             </div>
           </form>

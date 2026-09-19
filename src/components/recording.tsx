@@ -225,16 +225,16 @@ export function RecordingProvider({ upcoming, children }: { upcoming: Upcoming[]
       {phase === "idle" && <UpcomingPopup upcoming={upcoming} onJoin={(m) => start({ meetingId: m.id, title: m.title })} />}
 
       {(phase === "recording" || phase === "saving" || phase === "starting") && (
-        <div role="status" aria-live="polite" className="fixed left-1/2 top-1.5 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-ink py-1 pl-1.5 pr-1 text-white shadow-pop">
+        <div role="status" aria-live="polite" className="fixed left-1/2 top-1.5 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-ink py-1 pl-1.5 pr-1 text-canvas shadow-pop">
           <BrandMark className="size-6" />
           {phase === "recording" ? (
             <>
               <span className="size-2 animate-rec rounded-full bg-rec" aria-hidden />
               <span className="text-sm font-medium">Meetscribe is recording</span>
-              <span className="max-w-40 truncate text-xs text-white/60">{title}</span>
-              <span className="tabular font-mono text-sm text-white/80">{formatOffset(elapsed)}</span>
-              {bytes > WARN_BYTES && <span className="text-xs text-white/70">nearly full</span>}
-              <button type="button" onClick={stop} className="flex h-7 items-center gap-1.5 rounded-full bg-rec px-3 text-xs font-semibold transition-opacity hover:opacity-90">
+              <span className="max-w-40 truncate text-xs text-canvas/60">{title}</span>
+              <span className="tabular font-mono text-sm text-canvas/80">{formatOffset(elapsed)}</span>
+              {bytes > WARN_BYTES && <span className="text-xs text-canvas/70">nearly full</span>}
+              <button type="button" onClick={stop} className="flex h-7 items-center gap-1.5 rounded-full bg-rec px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90">
                 <Square className="size-3 fill-current" /> Stop
               </button>
             </>

@@ -1,40 +1,43 @@
 @import "tailwindcss";
 
 /*
- * Design tokens. Light, dense, Linear-like.
- * One accent (deep teal). Red is reserved for the recording state and nothing else:
+ * Design tokens. Dark and dense. Every colour in the app comes from here, which is what made re-theming a token swap.
+ * One accent (cyan-blue). Red is reserved for the recording state and nothing else:
  * errors use amber-brown so a red pixel always means "Meetscribe is recording".
  */
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", monospace;
 
-  --color-canvas: #fbfbfc;
-  --color-surface: #ffffff;
-  --color-sunken: #f4f5f7;
-  --color-hover: #f0f1f3;
+  /* Dark, after Fathom's own app: near-black canvas, cards one step lighter, a cyan-blue accent. */
+  --color-canvas: #0b0d10;
+  --color-surface: #13161b;
+  --color-sunken: #1a1e25;
+  --color-hover: #212630;
 
-  --color-line: #e7e9ec;
-  --color-line-strong: #d5d9de;
+  --color-line: #242932;
+  --color-line-strong: #353c48;
 
-  --color-ink: #12161b;
-  --color-ink-2: #3d4651;
-  --color-ink-3: #6b7683;
-  --color-ink-4: #98a1ad;
+  --color-ink: #f1f4f8;
+  --color-ink-2: #c7cdd6;
+  --color-ink-3: #8c95a3;
+  --color-ink-4: #626b79;
 
-  --color-accent: #0f766e;
-  --color-accent-hover: #0c625b;
-  --color-accent-ink: #0b4f4a;
-  --color-accent-soft: #e7f4f2;
-  --color-accent-line: #b9dcd8;
+  --color-accent: #2ea8f5;
+  --color-accent-hover: #55b9f7;
+  --color-accent-ink: #8fd3ff;
+  --color-accent-soft: #0e2a3f;
+  --color-accent-line: #1c4f74;
+  /* Text and marks that sit ON the accent colour: white on this cyan fails contrast, near-black passes. */
+  --color-on-accent: #03121d;
 
-  --color-rec: #dc2626;
-  --color-rec-soft: #fdecec;
+  --color-rec: #f04a4a;
+  --color-rec-soft: #3a1515;
 
-  --color-warn: #a45a0b;
-  --color-warn-soft: #fbf1e2;
-  --color-note: #7a5af5;
-  --color-note-soft: #f1eefe;
+  --color-warn: #f0a73f;
+  --color-warn-soft: #33250f;
+  --color-note: #a892fb;
+  --color-note-soft: #241d3f;
 
   --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
@@ -49,9 +52,9 @@
   --radius-lg: 8px;
   --radius-xl: 12px;
 
-  --shadow-xs: 0 1px 0 rgb(18 22 27 / 0.04);
-  --shadow-sm: 0 1px 2px rgb(18 22 27 / 0.06), 0 0 0 1px rgb(18 22 27 / 0.04);
-  --shadow-pop: 0 12px 32px -8px rgb(18 22 27 / 0.18), 0 0 0 1px rgb(18 22 27 / 0.06);
+  --shadow-xs: 0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.07);
+  --shadow-pop: 0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.09);
 
   --animate-rec: rec-pulse 1.6s ease-in-out infinite;
   @keyframes rec-pulse {
@@ -63,6 +66,7 @@
 @layer base {
   html {
     font-size: 16px;
+    color-scheme: dark; /* native controls (audio player, scrollbars, inputs) follow the theme */
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }

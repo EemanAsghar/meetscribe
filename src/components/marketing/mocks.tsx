@@ -48,12 +48,12 @@ export function RecordingMock() {
         <span className="size-2 rounded-full bg-rec" /> <span className="font-medium text-ink-2">● REC 12:48 · Meetscribe</span><span className="ml-auto">browser tab</span>
       </div>
       <div className="flex justify-center rounded-b-md border border-t-0 border-line bg-canvas px-3 py-6">
-        <div className="flex items-center gap-2.5 rounded-full bg-ink py-1 pl-1.5 pr-1 text-white">
+        <div className="flex items-center gap-2.5 rounded-full bg-ink py-1 pl-1.5 pr-1 text-canvas">
           <BrandMark className="size-6" />
           <span className="size-2 animate-rec rounded-full bg-rec" />
           <span className="text-sm font-medium">Meetscribe is recording</span>
-          <span className="tabular font-mono text-sm text-white/80">12:48</span>
-          <span className="flex h-7 items-center gap-1.5 rounded-full bg-rec px-3 text-xs font-semibold"><Square className="size-3 fill-current" /> Stop</span>
+          <span className="tabular font-mono text-sm text-canvas/80">12:48</span>
+          <span className="flex h-7 items-center gap-1.5 rounded-full bg-rec px-3 text-xs font-semibold text-white"><Square className="size-3 fill-current" /> Stop</span>
         </div>
       </div>
       <p className="mt-3 text-xs text-ink-3">On every page, in the tab title and in the favicon. Scheduled or instant, there is no way to record without it.</p>

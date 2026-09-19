@@ -119,7 +119,7 @@ export function MobileBar() {
           </Link>
         );
       })}
-      <Link href="/meetings/new" aria-label="New meeting" className="flex size-8 items-center justify-center rounded-md bg-accent text-white"><Plus className="size-4" /></Link>
+      <Link href="/meetings/new" aria-label="New meeting" className="flex size-8 items-center justify-center rounded-md bg-accent text-on-accent"><Plus className="size-4" /></Link>
     </div>
   );
 }
