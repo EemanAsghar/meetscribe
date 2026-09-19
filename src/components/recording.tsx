@@ -1,9 +1,10 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
-import { AlertTriangle, CalendarClock, Loader2, Mic, MonitorUp, Square, X } from "lucide-react";
+import { AlertTriangle, CalendarClock, Loader2, Mic, MonitorUp, PictureInPicture2, Square, X } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { formatOffset } from "@/lib/utils";
@@ -23,6 +24,28 @@ type StartOptions = { meetingId?: string; title?: string; mode?: CaptureMode };
 type Ctx = { phase: Phase; start: (opts?: StartOptions) => Promise<void>; error: string | null };
 
 class CaptureError extends Error {}
+
+// A web page cannot draw inside another site's tab, so the indicator cannot follow the user into Google Meet.
+// Document Picture-in-Picture can: a small always-on-top window that floats over every tab and every other app,
+// with the same indicator and a working Stop. Chrome and Edge on a computer.
+type PipApi = { requestWindow: (opts: { width: number; height: number }) => Promise<Window>; window: Window | null };
+const pipApi = (): PipApi | undefined => (typeof window === "undefined" ? undefined : (window as unknown as { documentPictureInPicture?: PipApi }).documentPictureInPicture);
+
+/** The floating window starts as an empty document: give it the app's styles and fonts so the same components render in it. */
+function dressFloatingWindow(w: Window) {
+  w.document.title = "Meetscribe is recording";
+  w.document.documentElement.className = document.documentElement.className;
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      const style = w.document.createElement("style");
+      style.textContent = Array.from(sheet.cssRules).map((r) => r.cssText).join("\n");
+      w.document.head.appendChild(style);
+    } catch {
+      if (sheet.href) w.document.head.appendChild(Object.assign(w.document.createElement("link"), { rel: "stylesheet", href: sheet.href }));
+    }
+  }
+  Object.assign(w.document.body.style, { margin: "0", display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "var(--color-canvas)", overflow: "hidden" });
+}
 
 /**
  * Opens the audio to record and returns one stream plus a cleanup function.
@@ -108,6 +131,28 @@ export function RecordingProvider({ upcoming, children }: { upcoming: Upcoming[]
   const startedAt = useRef(0);
   const size = useRef(0);
   const cleanup = useRef<() => void>(() => {});
+  const [floating, setFloating] = useState<Window | null>(null);
+  const floatingRef = useRef<Window | null>(null);
+
+  const adoptFloating = useCallback((w: Window | null) => {
+    if (!w) return;
+    dressFloatingWindow(w);
+    floatingRef.current = w;
+    setFloating(w);
+    // Closing the floating window does not stop the recording: the indicator in the app is still there.
+    w.addEventListener("pagehide", () => { floatingRef.current = null; setFloating(null); }, { once: true });
+  }, []);
+
+  const closeFloating = useCallback(() => {
+    floatingRef.current?.close();
+    floatingRef.current = null;
+    setFloating(null);
+  }, []);
+
+  /** Re-open it from the indicator (a click is required by the browser). */
+  const float = useCallback(() => {
+    pipApi()?.requestWindow({ width: 380, height: 64 }).then(adoptFloating).catch(() => {});
+  }, [adoptFloating]);
 
   const stop = useCallback(() => {
     if (recorder.current?.state === "recording") recorder.current.stop();
@@ -115,6 +160,7 @@ export function RecordingProvider({ upcoming, children }: { upcoming: Upcoming[]
 
   async function finish(mime: string) {
     cleanup.current();
+    closeFloating();
     const id = meetingId.current!;
     const durationMs = Date.now() - startedAt.current;
     setPhase("saving");
@@ -143,10 +189,14 @@ export function RecordingProvider({ upcoming, children }: { upcoming: Upcoming[]
     if (phase !== "idle") return;
     setError(null);
     setPhase("starting");
+    // Must be requested HERE, before the first await: the browser only allows it within moments of the click, and
+    // the tab picker that follows can take much longer than that. Measured: both requests succeed from one click.
+    const floatingRequest: Promise<Window | null> = pipApi()?.requestWindow({ width: 380, height: 64 }).catch(() => null) ?? Promise.resolve(null);
     let capture: Awaited<ReturnType<typeof openCapture>>;
     try {
       capture = await openCapture(opts?.mode ?? "mic", () => stop());
     } catch (e) {
+      void floatingRequest.then((w) => w?.close());
       setPhase("idle");
       setError(e instanceof CaptureError ? e.message : "Could not start recording.");
       return;
@@ -179,14 +229,16 @@ export function RecordingProvider({ upcoming, children }: { upcoming: Upcoming[]
       setElapsed(0);
       setBytes(0);
       setPhase("recording");
+      adoptFloating(await floatingRequest);
       router.refresh();
     } catch (e) {
       capture.cleanup();
+      void floatingRequest.then((w) => w?.close());
       setPhase("idle");
       setError(e instanceof Error ? e.message : "Could not start recording.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, router, stop]);
+  }, [phase, router, stop, adoptFloating]);
 
   // Clock, tab title and favicon: the state stays visible when this tab is in the background.
   useEffect(() => {
@@ -219,6 +271,31 @@ export function RecordingProvider({ upcoming, children }: { upcoming: Upcoming[]
     };
   }, [phase]);
 
+  const indicator = (inFloatingWindow: boolean) => (
+    <>
+      <BrandMark className="size-6" />
+      {phase === "recording" ? (
+        <>
+          <span className="size-2 animate-rec rounded-full bg-rec" aria-hidden />
+          <span className="text-sm font-medium">Meetscribe is recording</span>
+          {!inFloatingWindow && <span className="max-w-40 truncate text-xs text-canvas/60">{title}</span>}
+          <span className="tabular font-mono text-sm text-canvas/80">{formatOffset(elapsed)}</span>
+          {bytes > WARN_BYTES && <span className="text-xs text-canvas/70">nearly full</span>}
+          {!inFloatingWindow && !floating && pipApi() && (
+            <button type="button" onClick={float} title="Float this over your other tabs and apps" aria-label="Float this indicator over other tabs" className="flex size-7 items-center justify-center rounded-full text-canvas/70 transition-colors hover:bg-canvas/10 hover:text-canvas">
+              <PictureInPicture2 className="size-3.5" />
+            </button>
+          )}
+          <button type="button" onClick={stop} className="flex h-7 items-center gap-1.5 rounded-full bg-rec px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90">
+            <Square className="size-3 fill-current" /> Stop
+          </button>
+        </>
+      ) : (
+        <span className="flex items-center gap-2 pr-3 text-sm"><Loader2 className="size-3.5 animate-spin" /> {phase === "starting" ? "Starting…" : "Saving your recording…"}</span>
+      )}
+    </>
+  );
+
   return (
     <RecordingContext.Provider value={{ phase, start, error }}>
       {children}
@@ -226,23 +303,10 @@ export function RecordingProvider({ upcoming, children }: { upcoming: Upcoming[]
 
       {(phase === "recording" || phase === "saving" || phase === "starting") && (
         <div role="status" aria-live="polite" className="fixed left-1/2 top-1.5 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-ink py-1 pl-1.5 pr-1 text-canvas shadow-pop">
-          <BrandMark className="size-6" />
-          {phase === "recording" ? (
-            <>
-              <span className="size-2 animate-rec rounded-full bg-rec" aria-hidden />
-              <span className="text-sm font-medium">Meetscribe is recording</span>
-              <span className="max-w-40 truncate text-xs text-canvas/60">{title}</span>
-              <span className="tabular font-mono text-sm text-canvas/80">{formatOffset(elapsed)}</span>
-              {bytes > WARN_BYTES && <span className="text-xs text-canvas/70">nearly full</span>}
-              <button type="button" onClick={stop} className="flex h-7 items-center gap-1.5 rounded-full bg-rec px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90">
-                <Square className="size-3 fill-current" /> Stop
-              </button>
-            </>
-          ) : (
-            <span className="flex items-center gap-2 pr-3 text-sm"><Loader2 className="size-3.5 animate-spin" /> {phase === "starting" ? "Starting…" : "Saving your recording…"}</span>
-          )}
+          {indicator(false)}
         </div>
       )}
+      {floating && createPortal(<div className="flex items-center gap-3 rounded-full bg-ink py-1 pl-1.5 pr-1 text-canvas">{indicator(true)}</div>, floating.document.body)}
 
       {error && phase === "idle" && (
         <div role="alert" className="fixed bottom-5 left-1/2 z-50 flex max-w-md -translate-x-1/2 items-start gap-2 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn shadow-pop">

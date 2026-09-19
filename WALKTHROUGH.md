@@ -92,9 +92,11 @@ The prompt appears bottom right. Click **Join & capture audio**.
 
 > "Here, scheduled or instant, it's the same path and the same indicator."
 
-Point at the pill at the top, then the browser tab:
+Point at the pill at the top, then the browser tab, then the small floating window that opened:
 
-> "On every page, in the tab title, in the favicon. There is no way to record without it."
+> "On every page, in the tab title, in the favicon, and in this floating window that stays on top of every other tab and app. A web page can't draw inside Google Meet, so this is how the indicator follows me there, with a Stop that works. There is no way to record without it."
+
+Switch to another tab for a moment to show the floating window staying on top, then come back.
 
 Navigate to Ask and back while it records. Say two or three sentences with a name and a task in them, for example: *"Quick note: Sam will send the contract to legal by Tuesday, and I'll book the room."* Click **Stop**.
 

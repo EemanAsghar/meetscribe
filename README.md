@@ -10,7 +10,7 @@ It is not a clone. I used Fathom first, found three places where it let me down,
 | What I saw in Fathom | What Meetscribe does |
 |---|---|
 | I corrected something in the Scratchpad. The regenerated summary ignored it. | **Your notes feed the summary.** Where they disagree with the transcript, your notes win, and the affected bullets are marked "From your notes". |
-| Calendar meetings get a branded pre-meeting popup. An instant meeting was recorded with no visible branding at all. | **No silent recording.** Scheduled or instant, capture always shows the same "Meetscribe is recording" indicator on every page, in the tab title and in the favicon. There is no code path that records without it. |
+| Calendar meetings get a branded pre-meeting popup. An instant meeting was recorded with no visible branding at all. | **No silent recording.** Scheduled or instant, capture always shows the same "Meetscribe is recording" indicator on every page, in the tab title and in the favicon, and in a small always-on-top window that floats over your other tabs and apps (so it is still there, with a working Stop, when you switch to the meeting itself). There is no code path that records without it. |
 | "Ask Fathom" gave a cited answer with a jump-to-timestamp link. Good, and the feature I most wanted to beat. | **Ask Meetscribe** searches every meeting and your notes, orders the answer across meetings by date, previews the exact quote behind each citation, opens the exact transcript line, removes citations that point nowhere, and says "I couldn't find that in your meetings" without calling a model when nothing relevant exists. |
 
 ## Try it in five minutes
