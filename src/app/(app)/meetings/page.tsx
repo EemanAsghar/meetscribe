@@ -55,6 +55,7 @@ export default async function MeetingsPage() {
         actions={
           <>
             <Button asChild size="sm"><Link href="/meetings/new"><Upload /> Upload or paste</Link></Button>
+            <StartRecordingButton mode="tab" />
             <StartRecordingButton />
           </>
         }

@@ -12,11 +12,11 @@ A recording plan for a 5 to 6 minute video. Times are targets. Lines in quotes a
 
 ## 0:00 Opening (20 s)
 
-Login page.
+Landing page (`/`). Scroll it briefly, then click **Explore the demo workspace**.
 
 > "This is Meetscribe, a rebuild of Fathom, the AI meeting notetaker. I used Fathom first and found three things I thought I could do better. Those three are what I built hardest. Everything runs on free tiers."
 
-Click **Continue as demo user**.
+On the sign-in page, point out the two ways in: **Sign in with GitHub** (a private, empty workspace of your own) and **Explore the demo workspace** (the seeded meetings). Use the demo workspace for the rest.
 
 ## 0:20 The workspace (25 s)
 
@@ -102,9 +102,17 @@ Navigate to Ask and back while it records. Say two or three sentences with a nam
 
 Show the resulting meeting. On the **Transcript** tab click a line's time to play from there.
 
+### Optional: record a real Google Meet (adds about 45 s)
+
+If you want a captured call on camera: start a Google Meet in another Chrome tab first (a second device or a friend on the call gives it a second voice). Then **New meeting → Record now → Record a meeting tab**, pick the Meet tab, tick **"Also share tab audio"**, Share. Same indicator. Talk for 20 seconds, press Stop.
+
+> "There's no bot, so I can't send it into a meeting on its own. But if I'm in the call, it listens through my browser and hears everyone, not just my microphone."
+
+Try this once before recording the video. It is the one path nobody has tested with a real call.
+
 ## 4:55 What's faked, said plainly (35 s)
 
-> "What isn't real: no bot joins Zoom or Meet. Recording, upload and paste stand in for it. Calendar sync is that simulate button. Whisper can't tell speakers apart, so recordings show one speaker. And on free tiers the best model allows twenty requests a day, so these demo summaries were written by a faster, weaker one. The README says exactly which, and what it got wrong when I tested it."
+> "What isn't real: no bot joins Zoom or Meet on its own. Tab recording, upload and paste stand in for it. Calendar sync is that simulate button. Whisper can't tell speakers apart, so recordings show one speaker. And on free tiers the best model allows twenty requests a day, so these demo summaries were written by a faster, weaker one. The README says exactly which, and what it got wrong when I tested it."
 
 ## 5:30 Close (20 s)
 
@@ -120,5 +128,5 @@ Scroll `SPEC.md`'s changelog in GitHub.
 |---|---|---|
 | "The AI models are busy or out of free quota" | Free-tier limit | Say so, press Try again, or move on. Ask runs on a different provider than summaries, so it usually still works. |
 | Ask takes 10 s or more | Groq's per-minute token budget; it is waiting for room | Keep talking. It completes. Avoid asking two long questions back to back. |
-| Recording ends with "No speech was found" | The microphone picked up silence | Check the selected input device, record again. |
+| Recording ends with "No speech was found" | The microphone picked up silence, or a tab was shared without its audio | Check the input device. For a meeting tab, share a Chrome **tab** (not a window) and tick "Also share tab audio". |
 | Summary missing on a meeting | Not generated yet | Summary tab → Generate summary. |

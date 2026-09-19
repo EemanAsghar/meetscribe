@@ -48,7 +48,7 @@ const PILLARS = [
 ];
 
 const INPUTS = [
-  { icon: Mic, title: "Record in your browser", body: "One click. Transcribed with Whisper when you stop." },
+  { icon: Mic, title: "Record a call or a room", body: "Share the tab your Meet, Zoom or Teams call is in and Meetscribe hears everyone, or just record your microphone." },
   { icon: FileAudio, title: "Upload a recording", body: "MP3, M4A, WAV or WebM from any call, up to 25 MB." },
   { icon: ClipboardPaste, title: "Paste a transcript", body: "Zoom and Meet captions (.vtt), .srt, Fathom exports, or plain text. Speaker names are kept." },
 ];
@@ -120,7 +120,7 @@ export default async function LandingPage() {
           <div className="mx-auto max-w-6xl px-5 py-20">
             <h2 className="text-center text-3xl font-semibold tracking-tight text-ink">Works with what you already have</h2>
             <p className="mx-auto mt-3 max-w-2xl text-center text-base text-ink-3">
-              There is no bot that joins your calls. Bring the conversation in whichever way is easiest, and everything after that is the same.
+              No bot joins your calls on its own. You are in the meeting and Meetscribe listens through your browser, or you bring the conversation in afterwards.
             </p>
             <div className="mt-10 grid gap-4 sm:grid-cols-3">
               {INPUTS.map(({ icon: Icon, title, body }) => (
