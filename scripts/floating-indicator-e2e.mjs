@@ -1,8 +1,8 @@
 // Verifies the floating (Document Picture-in-Picture) recording indicator in a VISIBLE Chrome window, because
 // headless Chrome does not have the API. Starts a recording with a trusted click, checks the floating window,
 // presses Stop INSIDE it, and waits for the redirect. Usage: node scripts/floating-indicator-e2e.mjs <base> <cookie>
-import { spawn } from "node:child_process"; import { mkdtempSync, writeFileSync } from "node:fs"; import { tmpdir } from "node:os"; import { join } from "node:path";
-const [base, cookie, shotDir] = process.argv.slice(2);
+import { spawn } from "node:child_process"; import { mkdtempSync } from "node:fs"; import { tmpdir } from "node:os"; import { join } from "node:path";
+const [base, cookie] = process.argv.slice(2);
 const port = 9700 + Math.floor(Math.random() * 90);
 const chrome = spawn("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", [`--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), "ms-pip-"))}`, "--no-first-run", "--no-default-browser-check", "--window-size=1300,800", "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "about:blank"], { stdio: "ignore" });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
