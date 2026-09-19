@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/page-header";
 import { ProcessingPoller } from "@/components/processing-poller";
 import { ScratchpadEditor } from "@/components/scratchpad-editor";
 import { ShareButton } from "@/components/share-button";
+import { RecordingState } from "@/components/stale-recording";
 import { SummaryBody } from "@/components/summary-body";
 import { SummaryControls } from "@/components/summary-controls";
 import { TranscriptView } from "@/components/transcript-view";
@@ -129,11 +130,11 @@ export default async function MeetingPage({ params, searchParams }: Props) {
       {/* Two columns on wide screens, as in Fathom's app: the meeting on the left, Ask docked on the right. */}
       <div className="flex min-h-0 flex-1">
       <main className="min-w-0 flex-1 overflow-y-auto">
-        {meeting.status === "scheduled" || meeting.status === "recording" ? (
-          <EmptyState icon={Radio} title={meeting.status === "recording" ? "Meetscribe is recording this meeting" : "This meeting has not started"}>
-            {meeting.status === "recording"
-              ? "The recording indicator at the bottom of the screen stays visible wherever you go. Press Stop there when you are done, and the transcript and summary appear here."
-              : "When it is about to start, Meetscribe asks whether to join and capture audio."}
+        {meeting.status === "recording" ? (
+          <RecordingState meetingId={meeting.id} />
+        ) : meeting.status === "scheduled" ? (
+          <EmptyState icon={Radio} title="This meeting has not started">
+            When it is about to start, Meetscribe asks whether to join and capture audio.
           </EmptyState>
         ) : processing && segments.length === 0 ? (
           <Generating label="Transcribing the recording…" />
