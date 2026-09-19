@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { AlertTriangle, FileText, Loader2, MessageSquareText, Radio, Sparkles } from "lucide-react";
 import { ActionItems } from "@/components/action-items";
+import { AskChat } from "@/components/ask-chat";
 import { CopyButton } from "@/components/copy-button";
 import { MeetingTabs, parseTab } from "@/components/meeting-tabs";
 import { PageHeader } from "@/components/page-header";
@@ -84,6 +85,7 @@ export default async function MeetingPage({ params, searchParams }: Props) {
   }));
   const speakers = [...new Set(segments.map((s) => s.speaker))];
   const processing = meeting.status === "processing";
+  const hasTranscript = segments.length > 0;
   // Who an action item can be given to: the people in this meeting first, then the rest of the workspace.
   const workspace = await db.select({ name: schema.users.name }).from(schema.users);
   const people = [...new Set([...speakers.filter((n) => n !== "Speaker"), ...workspace.map((u) => u.name)])];
@@ -103,7 +105,7 @@ export default async function MeetingPage({ params, searchParams }: Props) {
                 <span aria-hidden>·</span>
                 <span className="flex -space-x-1">
                   {speakers.slice(0, 5).map((s) => (
-                    <span key={s} title={s} className="flex size-4.5 items-center justify-center rounded-full text-[9px] font-semibold text-white ring-2 ring-surface" style={{ background: speakerColor(s, speakers) }}>
+                    <span key={s} title={s} className="flex size-4.5 items-center justify-center rounded-full text-[9px] font-semibold text-on-accent ring-2 ring-surface" style={{ background: speakerColor(s, speakers) }}>
                       {initials(s)}
                     </span>
                   ))}
@@ -114,7 +116,7 @@ export default async function MeetingPage({ params, searchParams }: Props) {
         }
         actions={
           <>
-            <Button asChild size="sm">
+            <Button asChild size="sm" className={hasTranscript ? "xl:hidden" : undefined}>
               <Link href={`/ask?meeting=${meeting.id}`}>
                 <MessageSquareText className="text-accent" /> Ask about this meeting
               </Link>
@@ -124,7 +126,9 @@ export default async function MeetingPage({ params, searchParams }: Props) {
         }
       />
       <MeetingTabs meetingId={meeting.id} active={tab} counts={{ actions: actionItems.length || undefined }} />
-      <main className="flex-1 overflow-y-auto">
+      {/* Two columns on wide screens, as in Fathom's app: the meeting on the left, Ask docked on the right. */}
+      <div className="flex min-h-0 flex-1">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         {meeting.status === "scheduled" || meeting.status === "recording" ? (
           <EmptyState icon={Radio} title={meeting.status === "recording" ? "Meetscribe is recording this meeting" : "This meeting has not started"}>
             {meeting.status === "recording"
@@ -179,6 +183,20 @@ export default async function MeetingPage({ params, searchParams }: Props) {
           <ScratchpadEditor key={meeting.id} meetingId={meeting.id} initialContent={pad?.content ?? ""} summaryIsStale={notesChanged} />
         )}
       </main>
+      {hasTranscript && (
+        <aside className="hidden w-[25rem] shrink-0 flex-col border-l border-line bg-surface xl:flex" aria-label="Ask about this meeting">
+          <p className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-4 text-2xs font-semibold uppercase tracking-wider text-ink-3">
+            <Sparkles className="size-3.5 text-accent" /> Ask <span className="text-ink">Meetscribe</span>
+          </p>
+          <AskChat
+            key={meeting.id}
+            compact
+            scopeMeeting={{ id: meeting.id, title: meeting.title }}
+            suggestions={["What were the main points?", "What did each person commit to?", "Were any numbers, prices or dates mentioned?"]}
+          />
+        </aside>
+      )}
+      </div>
     </>
   );
 }

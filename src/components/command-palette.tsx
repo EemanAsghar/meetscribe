@@ -36,7 +36,7 @@ export function CommandPalette({ meetings }: { meetings: { id: string; title: st
       onOpenChange={setOpen}
       label="Ask Meetscribe or jump to a meeting"
       shouldFilter
-      overlayClassName="fixed inset-0 z-40 bg-ink/20 backdrop-blur-[1px]"
+      overlayClassName="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px]"
       contentClassName="fixed left-1/2 top-[18vh] z-50 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-xl bg-surface shadow-pop"
     >
       <div className="flex items-center gap-2 border-b border-line px-3">

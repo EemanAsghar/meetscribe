@@ -82,7 +82,7 @@ export function MeetingsList({ meetings }: { meetings: MeetingRow[] }) {
                     </div>
                     <span className="hidden shrink-0 -space-x-1 sm:flex">
                       {m.people.slice(0, 4).map((p) => (
-                        <span key={p} title={p} className="flex size-5 items-center justify-center rounded-full text-[9px] font-semibold text-white ring-2 ring-surface" style={{ background: speakerColor(p, m.people) }}>{initials(p)}</span>
+                        <span key={p} title={p} className="flex size-5 items-center justify-center rounded-full text-[9px] font-semibold text-on-accent ring-2 ring-surface" style={{ background: speakerColor(p, m.people) }}>{initials(p)}</span>
                       ))}
                       {m.people.length > 4 && <span className="flex size-5 items-center justify-center rounded-full bg-sunken text-[9px] font-medium text-ink-3 ring-2 ring-surface">+{m.people.length - 4}</span>}
                     </span>

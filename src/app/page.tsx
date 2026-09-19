@@ -88,7 +88,7 @@ export default async function LandingPage() {
               <Button asChild variant="primary" size="lg"><Link href="/login">Explore the demo workspace <ArrowRight /></Link></Button>
               <Button asChild variant="secondary" size="lg"><a href={REPO} target="_blank" rel="noreferrer"><Github /> See how it was built</a></Button>
             </div>
-            <p className="mt-3 text-xs text-ink-4">No signup. Nine meetings already in it.</p>
+            <p className="mt-3 text-xs text-ink-4">No signup. The demo meetings are already in it.</p>
 
             <div className="mx-auto mt-14 grid max-w-5xl items-start gap-5 text-left md:grid-cols-2">
               <AskMock />

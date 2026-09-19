@@ -91,7 +91,7 @@ export function ActionItems({ meetingId, initial, people, estimated }: { meeting
               aria-checked={item.done}
               aria-label={item.done ? "Mark as not done" : "Mark as done"}
               onClick={() => change(item.id, { done: !item.done })}
-              className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm border transition-colors", item.done ? "border-accent bg-accent text-white" : "border-line-strong bg-surface hover:border-accent")}
+              className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm border transition-colors", item.done ? "border-accent bg-accent text-on-accent" : "border-line-strong bg-surface hover:border-accent")}
             >
               {item.done && <Check className="size-3" strokeWidth={3} />}
             </button>

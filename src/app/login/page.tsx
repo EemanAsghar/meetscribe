@@ -58,7 +58,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <input type="hidden" name="from" value={from ?? ""} />
             <Button variant="secondary" size="lg" className="w-full">Explore the demo workspace <ArrowRight /></Button>
           </form>
-          <p className="mt-2 text-center text-xs text-ink-4">No account needed. Eight meetings already in it, ready to ask questions of.</p>
+          <p className="mt-2 text-center text-xs text-ink-4">No account needed. The demo meetings are already in it, ready to ask questions of.</p>
         </div>
       </div>
 

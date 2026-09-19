@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://meetscribe-three.vercel.app"),
   openGraph: { title: "Meetscribe", description: "Meeting notes you can correct, question and trust.", type: "website", siteName: "Meetscribe" },
   icons: { icon: "/icon.svg" },
+  other: { "theme-color": "#0b0d10" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

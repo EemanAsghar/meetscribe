@@ -70,6 +70,8 @@ paste / upload / record ──► segments ──► chunks (150-250 words, embe
 - **Providers** sit behind one interface (`src/lib/llm.ts`) with an order per task, hang detection (Gemini is streamed and abandoned if no first token arrives in 12 s), a size pre-check for Groq, wait-and-retry on its per-minute limit, and a short circuit breaker. Every result records which model produced it.
 - **Recordings are private.** The Blob store is private; audio reaches the owner through an authenticated streaming route and is never on the share page.
 
+**Look.** Dark, with a cyan accent and Ask docked beside each meeting, modelled on the product screenshots Fathom publishes on its own site. Every colour is a design token, so the whole re-theme was a change to one block of CSS variables. The name, mark and wording are Meetscribe's own.
+
 **Stack:** Next.js 16 (App Router), TypeScript, Tailwind v4, Radix primitives, Neon Postgres with pgvector, Drizzle, Vercel (functions pinned to `cle1`, next to the database), Vercel Blob. Gemini, Groq (chat and Whisper) and OpenRouter, all free tier.
 
 ## Run it

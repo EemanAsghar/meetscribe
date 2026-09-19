@@ -77,7 +77,7 @@ export default async function SharePage({ params, searchParams }: Props) {
               <span className="flex items-center gap-1.5">
                 <span className="flex -space-x-1">
                   {speakers.slice(0, 5).map((s) => (
-                    <span key={s} title={s} className="flex size-5 items-center justify-center rounded-full text-[9px] font-semibold text-white ring-2 ring-canvas" style={{ background: speakerColor(s, speakers) }}>{initials(s)}</span>
+                    <span key={s} title={s} className="flex size-5 items-center justify-center rounded-full text-[9px] font-semibold text-on-accent ring-2 ring-canvas" style={{ background: speakerColor(s, speakers) }}>{initials(s)}</span>
                   ))}
                 </span>
                 {speakers.slice(0, 3).join(", ")}{speakers.length > 3 ? ` and ${speakers.length - 3} more` : ""}
@@ -100,7 +100,7 @@ export default async function SharePage({ params, searchParams }: Props) {
             <ul className="mt-2 divide-y divide-line rounded-lg border border-line bg-surface">
               {actionItems.map((item) => (
                 <li key={item.id} className="flex items-start gap-3 px-4 py-2.5">
-                  <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm border", item.done ? "border-accent bg-accent text-white" : "border-line-strong")} aria-label={item.done ? "Done" : "Not done"}>
+                  <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm border", item.done ? "border-accent bg-accent text-on-accent" : "border-line-strong")} aria-label={item.done ? "Done" : "Not done"}>
                     {item.done && <Check className="size-3" strokeWidth={3} />}
                   </span>
                   <div className="min-w-0 flex-1">
